@@ -1,37 +1,96 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, Clock, User, CheckCircle, XCircle, AlertCircle, DollarSign, MessageSquare, LogIn } from 'lucide-react';
+import { Search, Clock, User, DollarSign, MessageSquare, LogIn } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import AdminLayout from './AdminLayout';
+import { supabaseDbService, type Activity, type Transaction, type Profile } from '../../../services/supabaseDbService';
 
-// Activity logs are now fetched from bankingDb in component
+interface AdminLogRow {
+  id: string;
+  actor: string;
+  actorType: 'admin' | 'user';
+  action: string;
+  description: string;
+  type: string;
+  status: string;
+  timestamp: string;
+  details: string;
+}
 
 export default function AdminTransactions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'auth' | 'deposit' | 'transfer' | 'funding' | 'support' | 'profile'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'pending' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'oldest'>('recent');
+  const [logs, setLogs] = useState<AdminLogRow[]>([]);
 
-  // Get activity logs from bankingDb and admin logs
-  const adminLogs = (window as any).bankingDb?.adminLogs || [];
-  
-  // Transform admin logs to activity format
-  const activityLog = adminLogs.map((log: any, idx: number) => ({
-    id: `ACT-${idx}`,
-    actor: 'Admin Panel',
-    actorType: 'admin',
-    action: log.action,
-    description: `${log.action} for user ${log.targetUserId}`,
-    type: log.action.includes('FREEZE') ? 'profile' : 'admin',
-    status: 'success',
-    timestamp: new Date(log.timestamp).toLocaleString(),
-    details: JSON.stringify(log.details)
-  })) || [];
+  useEffect(() => {
+    const loadLogs = async () => {
+      const [profiles, transactions, activities] = await Promise.all([
+        supabaseDbService.getAllProfiles(),
+        supabaseDbService.getAllTransactions(),
+        supabaseDbService.getAllActivities(),
+      ]);
+
+      const profileById = new Map(profiles.map((p) => [p.id, p]));
+
+      const txLogs: AdminLogRow[] = transactions.map((tx: Transaction) => {
+        const profile = profileById.get(tx.user_id) as Profile | undefined;
+        const actorName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || profile?.email || 'User';
+        const type = tx.type === 'credit' ? 'deposit' : 'transfer';
+        const status = tx.status === 'completed' ? 'success' : tx.status;
+        const timestamp = tx.created_at ? new Date(tx.created_at).toLocaleString() : 'N/A';
+        return {
+          id: `TX-${tx.id}`,
+          actor: actorName,
+          actorType: 'user',
+          action: tx.type === 'credit' ? 'Deposit' : 'Transfer',
+          description: tx.description || `${tx.type} transaction`,
+          type,
+          status,
+          timestamp,
+          details: JSON.stringify({
+            amount: tx.amount,
+            currency: tx.currency,
+            account_id: tx.account_id,
+            status: tx.status,
+          }),
+        };
+      });
+
+      const activityLogs: AdminLogRow[] = activities.map((activity: Activity) => {
+        const profile = profileById.get(activity.user_id) as Profile | undefined;
+        const actorName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || profile?.email || 'User';
+        const timestamp = activity.created_at ? new Date(activity.created_at).toLocaleString() : 'N/A';
+        return {
+          id: `ACT-${activity.id}`,
+          actor: actorName,
+          actorType: 'user',
+          action: activity.type || 'Activity',
+          description: activity.description || 'User activity',
+          type: activity.type || 'profile',
+          status: 'success',
+          timestamp,
+          details: JSON.stringify({ amount: activity.amount || 0 }),
+        };
+      });
+
+      const merged = [...txLogs, ...activityLogs].sort((a, b) => {
+        const aTime = new Date(a.timestamp).getTime();
+        const bTime = new Date(b.timestamp).getTime();
+        return bTime - aTime;
+      });
+
+      setLogs(merged);
+    };
+
+    loadLogs();
+  }, []);
 
   // Filter logic
-  let filteredLog = [...activityLog];
+  let filteredLog = [...logs];
 
   if (filterType !== 'all') {
     filteredLog = filteredLog.filter(log => log.type === filterType);
@@ -55,12 +114,12 @@ export default function AdminTransactions() {
   }
 
   // Calculate statistics
-  const stats = {
+  const stats = useMemo(() => ({
     totalActions: filteredLog.length,
     successfulActions: filteredLog.filter(log => log.status === 'success').length,
     pendingActions: filteredLog.filter(log => log.status === 'pending').length,
     failedActions: filteredLog.filter(log => log.status === 'failed').length
-  };
+  }), [filteredLog]);
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -215,7 +274,7 @@ export default function AdminTransactions() {
                           <User className="w-3 h-3 text-muted-foreground" />
                           <span className="font-medium">{log.actor}</span>
                           <span className="text-xs bg-muted px-2 py-1 rounded">
-                            {log.actorType === 'admin' ? '🔒 Admin' : '👤 User'}
+                            {log.actorType === 'admin' ? 'Admin' : 'User'}
                           </span>
                         </div>
 

@@ -9,6 +9,7 @@ import GoogleSignupButton from './GoogleSignupButton';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
+import ENV from '../../../config/env';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -25,9 +26,10 @@ export default function Register() {
     try {
       const client = getClient();
       if (!client) throw new Error('Supabase not configured');
+      const redirectTo = ENV.VITE_SITE_URL || window.location.origin;
       const { error: oauthError } = await client.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/dashboard` }
+        options: { redirectTo: `${redirectTo}/dashboard` }
       });
       if (oauthError) throw oauthError;
     } catch (err) {

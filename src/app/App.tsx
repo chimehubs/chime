@@ -12,11 +12,11 @@ import Cards from './components/user/Cards';
 import Chat from './components/user/Chat';
 import Withdraw from '../features/withdraw/Withdraw';
 import AdminDashboard from './components/admin/AdminDashboard';
-import AdminUnregisteredUsers from './components/admin/AdminUnregisteredUsers';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminTransactions from './components/admin/AdminTransactions';
 import AdminDeposits from './components/admin/AdminDeposits';
 import AdminSettings from './components/admin/AdminSettings';
+import InstallPrompt from './components/pwa/InstallPrompt';
 import { ProtectedRoute, AdminRoute } from '../routes/ProtectedRoute';
 
 export default function App() {
@@ -114,14 +114,6 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/unregistered"
-          element={
-            <AdminRoute>
-              <AdminUnregisteredUsers />
-            </AdminRoute>
-          }
-        />
-        <Route
           path="/admin/users"
           element={
             <AdminRoute>
@@ -157,6 +149,7 @@ export default function App() {
         {/* Default Route */}
         <Route path="/*" element={<Navigate to="/" />} />
       </Routes>
+      <InstallPrompt />
     </BrowserRouter>
   );
 }

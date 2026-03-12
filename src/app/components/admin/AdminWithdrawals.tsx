@@ -3,89 +3,89 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, XCircle, Clock, DollarSign, X, Mail, Phone, Calendar, FileText } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
 import AdminLayout from './AdminLayout';
+import { supabaseDbService, type Transaction, type Profile, type Account } from '../../../services/supabaseDbService';
 
-// Shared users database (same as in AdminUsers)
-const users = [
-  { id: '#45892', name: 'John Anderson', email: 'john.a@email.com', balance: '$8,247.56', currency: 'USD', status: 'active', riskScore: 'low', joined: '2024-01-15' },
-  { id: '#45891', name: 'Sarah Martinez', email: 'sarah.m@email.com', balance: '$12,450.00', currency: 'USD', status: 'active', riskScore: 'low', joined: '2024-01-14' },
-  { id: '#45890', name: 'Michael Chen', email: 'michael.c@email.com', balance: '$3,892.34', currency: 'USD', status: 'restricted', riskScore: 'medium', joined: '2024-01-12' },
-  { id: '#45889', name: 'Emily Davis', email: 'emily.d@email.com', balance: '€15,672.89', currency: 'EUR', status: 'active', riskScore: 'low', joined: '2024-01-10' },
-  { id: '#45888', name: 'David Miller', email: 'david.m@email.com', balance: '$987.23', currency: 'USD', status: 'under_review', riskScore: 'high', joined: '2024-01-08' },
-  { id: '#45887', name: 'Lisa Thompson', email: 'lisa.t@email.com', balance: '£24,567.12', currency: 'GBP', status: 'active', riskScore: 'low', joined: '2024-01-05' },
-  { id: '#45886', name: 'James Wilson', email: 'james.w@email.com', balance: '$6,234.78', currency: 'USD', status: 'active', riskScore: 'low', joined: '2024-01-03' },
-  { id: '#45885', name: 'Maria Garcia', email: 'maria.g@email.com', balance: '₹18,901.45', currency: 'INR', status: 'active', riskScore: 'low', joined: '2023-12-28' }
-];
-
-const withdrawals = [
-  {
-    id: 'WTH-001',
-    user: 'David Miller',
-    email: 'david.m@email.com',
-    phone: '+1 (555) 123-4567',
-    amount: '$3,000.00',
-    fee: '$30',
-    destination: 'Bank Account ****1234',
-    status: 'pending',
-    created: '30 minutes ago',
-    reference: 'WTH-2024-001',
-    bankName: 'Wells Fargo',
-    accountNumber: '****1234',
-    uploadedImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect fill=%22%23e0e0e0%22 width=%22400%22 height=%22300%22/%3E%3Ctext fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2216%22 font-family=%22Arial%22%3EWithdrawal Request - David Miller%3C/text%3E%3C/svg%3E'
-  },
-  {
-    id: 'WTH-002',
-    user: 'Lisa Thompson',
-    email: 'lisa.t@email.com',
-    phone: '+1 (555) 234-5678',
-    amount: '$5,000.00',
-    fee: '$50',
-    destination: 'Bank Account ****5678',
-    status: 'pending',
-    created: '1 hour ago',
-    reference: 'WTH-2024-002',
-    bankName: 'Chase Bank',
-    accountNumber: '****5678',
-    uploadedImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect fill=%22%23e0e0e0%22 width=%22400%22 height=%22300%22/%3E%3Ctext fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2216%22 font-family=%22Arial%22%3EWithdrawal Request - Lisa Thompson%3C/text%3E%3C/svg%3E'
-  },
-  {
-    id: 'WTH-003',
-    user: 'James Wilson',
-    email: 'james.w@email.com',
-    phone: '+1 (555) 345-6789',
-    amount: '$2,000.00',
-    fee: '$20',
-    destination: 'Bank Account ****9012',
-    status: 'completed',
-    created: '2 hours ago',
-    reference: 'WTH-2024-003',
-    bankName: 'BofA',
-    accountNumber: '****9012',
-    uploadedImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect fill=%22%23e0e0e0%22 width=%22400%22 height=%22300%22/%3E%3Ctext fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2216%22 font-family=%22Arial%22%3EWithdrawal Request - James Wilson%3C/text%3E%3C/svg%3E'
-  },
-  {
-    id: 'WTH-004',
-    user: 'Maria Garcia',
-    email: 'maria.g@email.com',
-    phone: '+1 (555) 456-7890',
-    amount: '$1,500.00',
-    fee: '$15',
-    destination: 'Bank Account ****3456',
-    status: 'rejected',
-    created: '1 day ago',
-    reference: 'WTH-2024-004',
-    bankName: 'Capital One',
-    accountNumber: '****3456',
-    uploadedImage: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect fill=%22%23e0e0e0%22 width=%22400%22 height=%22300%22/%3E%3Ctext fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2216%22 font-family=%22Arial%22%3EWithdrawal Request - Maria Garcia%3C/text%3E%3C/svg%3E'
-  }
-];
+interface WithdrawalRow {
+  id: string;
+  userId: string;
+  accountId: string;
+  user: string;
+  email: string;
+  phone: string;
+  amount: string;
+  amountValue: number;
+  fee: string;
+  status: string;
+  created: string;
+  reference: string;
+  destination: string;
+  bankName: string;
+  accountNumber: string;
+  currency: string;
+}
 
 export default function AdminWithdrawals() {
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [showFullPanel, setShowFullPanel] = useState(false);
+  const [balancesByAccount, setBalancesByAccount] = useState<Map<string, number>>(new Map());
+
+  React.useEffect(() => {
+    const loadWithdrawals = async () => {
+      const [profiles, accounts, transactions] = await Promise.all([
+        supabaseDbService.getAllProfiles(),
+        supabaseDbService.getAllAccounts(),
+        supabaseDbService.getAllTransactions(),
+      ]);
+
+      const profileById = new Map(profiles.map((p) => [p.id, p]));
+      const accountById = new Map(accounts.map((a) => [a.id, a]));
+
+      const balanceMap = new Map<string, number>();
+      transactions.forEach((tx: Transaction) => {
+        const current = balanceMap.get(tx.account_id) || 0;
+        balanceMap.set(tx.account_id, tx.type === 'credit' ? current + Number(tx.amount) : current - Number(tx.amount));
+      });
+      setBalancesByAccount(balanceMap);
+
+      const withdrawalRows = transactions
+        .filter((tx) => tx.type === 'debit')
+        .map((tx) => {
+          const profile = profileById.get(tx.user_id) as Profile | undefined;
+          const account = accountById.get(tx.account_id) as Account | undefined;
+          const userName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'User';
+          const currency = tx.currency || profile?.currency || account?.currency || 'USD';
+          const amountValue = Number(tx.amount || 0);
+          const formattedAmount = `${getCurrencySymbol(currency)}${amountValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+
+          return {
+            id: tx.id,
+            userId: tx.user_id,
+            accountId: tx.account_id,
+            user: userName,
+            email: profile?.email || 'N/A',
+            phone: profile?.phone || 'N/A',
+            amount: formattedAmount,
+            amountValue,
+            fee: '$0.00',
+            status: tx.status,
+            created: tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'N/A',
+            reference: tx.id,
+            destination: 'External Bank',
+            bankName: 'N/A',
+            accountNumber: account?.account_number ? `****${account.account_number.slice(-4)}` : 'N/A',
+            currency,
+          } as WithdrawalRow;
+        });
+
+      setWithdrawals(withdrawalRows);
+    };
+
+    loadWithdrawals();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -93,7 +93,7 @@ export default function AdminWithdrawals() {
         return 'bg-amber-100 text-amber-700';
       case 'completed':
         return 'bg-green-100 text-green-700';
-      case 'rejected':
+      case 'failed':
         return 'bg-red-100 text-red-700';
       default:
         return 'bg-gray-100 text-gray-700';
@@ -111,70 +111,47 @@ export default function AdminWithdrawals() {
     return colors[hash % colors.length];
   };
 
-  const handleProcess = (id: string) => {
+  const getCurrencySymbol = (currency: string) => {
+    const symbols: { [key: string]: string } = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'INR': '₹',
+      'JPY': '¥',
+      'AUD': 'A$',
+      'CAD': 'C$'
+    };
+    return symbols[currency] || '$';
+  };
+
+  const handleProcess = async (id: string) => {
     if (!selected) return;
 
-    // Find user by email
-    const user = users.find(u => u.email === selected.email);
-    if (!user) {
-      setStatusMsg('User not found');
-      return;
-    }
+    await supabaseDbService.updateTransaction(id, { status: 'completed' });
 
-    // Extract withdrawal amount and fee (remove $ and commas)
-    const withdrawalAmount = parseFloat(selected.amount.replace(/[$,]/g, ''));
-    const feeAmount = parseFloat(selected.fee.replace(/[$,]/g, ''));
-    const totalDeducted = withdrawalAmount + feeAmount;
-    
-    // Extract current balance as number
-    const currentBalance = parseFloat(user.balance.replace(/[$,]/g, ''));
-    const newBalance = currentBalance - totalDeducted;
-    
-    // Get currency symbol
-    const getCurrencySymbol = (currency: string) => {
-      const symbols: { [key: string]: string } = {
-        'USD': '$',
-        'EUR': '€',
-        'GBP': '£',
-        'INR': '₹',
-        'JPY': '¥',
-        'AUD': 'A$',
-        'CAD': 'C$'
-      };
-      return symbols[currency] || '$';
-    };
+    const currentBalance = balancesByAccount.get(selected.accountId) || 0;
+    const newBalanceValue = currentBalance - selected.amountValue;
+    const currencySymbol = getCurrencySymbol(selected.currency || 'USD');
+    const formattedNewBalance = `${currencySymbol}${newBalanceValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-    const currencySymbol = getCurrencySymbol(user.currency || 'USD');
-    const formattedNewBalance = `${currencySymbol}${newBalance.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-
-    // Create debit notification for user
-    const notification = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'debit_alert',
+    await supabaseDbService.createNotification({
+      user_id: selected.userId,
       title: 'Withdrawal Processed ✓',
-      message: `Your withdrawal of ${selected.amount} (Fee: ${selected.fee}) to ${selected.destination} has been processed. Your new balance is ${formattedNewBalance}`,
-      amount: `-${selected.amount}`,
-      status: 'success',
-      timestamp: new Date().toLocaleDateString(),
-      reference: selected.reference,
-      fee: selected.fee
-    };
+      message: `Your withdrawal of ${selected.amount} has been processed. Your new balance is ${formattedNewBalance}.`,
+      type: 'debit',
+      read: false,
+      path: '/activity',
+    });
 
-    // Store notification in localStorage
-    const existingNotifications = JSON.parse(localStorage.getItem(`notifications_${user.id}`) || '[]');
-    existingNotifications.unshift(notification);
-    localStorage.setItem(`notifications_${user.id}`, JSON.stringify(existingNotifications));
+    await supabaseDbService.createActivity({
+      user_id: selected.userId,
+      type: 'withdrawal',
+      description: 'Withdrawal processed',
+      amount: selected.amountValue,
+    });
 
-    // Update user balance in localStorage
-    localStorage.setItem(`user_balance_${user.id}`, formattedNewBalance);
-
-    // Update withdrawal status
-    const withdrawalIndex = withdrawals.findIndex(w => w.id === id);
-    if (withdrawalIndex !== -1) {
-      withdrawals[withdrawalIndex].status = 'completed';
-    }
-
-    setStatusMsg(`✓ Withdrawal ${id} processed. Debit alert sent to ${selected.user}. New balance: ${formattedNewBalance}`);
+    setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: 'completed' } : w)));
+    setStatusMsg(`✓ Withdrawal ${id} processed. Debit alert sent to ${selected.user}.`);
     setTimeout(() => {
       setStatusMsg('');
       setShowFullPanel(false);
@@ -182,7 +159,7 @@ export default function AdminWithdrawals() {
     }, 2500);
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     if (!rejectionReason.trim()) {
       setStatusMsg('Please enter a rejection reason');
       return;
@@ -190,37 +167,25 @@ export default function AdminWithdrawals() {
 
     if (!selected) return;
 
-    // Find user by email
-    const user = users.find(u => u.email === selected.email);
-    if (!user) {
-      setStatusMsg('User not found');
-      return;
-    }
+    await supabaseDbService.updateTransaction(id, { status: 'failed' });
 
-    // Create rejection notification with admin reason
-    const notification = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'transaction_failed',
+    await supabaseDbService.createNotification({
+      user_id: selected.userId,
       title: 'Withdrawal Rejected ✗',
-      message: `Your withdrawal of ${selected.amount} to ${selected.destination} has been rejected. Reason: ${rejectionReason}`,
-      amount: selected.amount,
-      status: 'failed',
-      timestamp: new Date().toLocaleDateString(),
-      reference: selected.reference,
-      adminReason: rejectionReason
-    };
+      message: `Your withdrawal of ${selected.amount} has been rejected. Reason: ${rejectionReason}`,
+      type: 'failed',
+      read: false,
+      path: '/activity',
+    });
 
-    // Store notification in localStorage
-    const existingNotifications = JSON.parse(localStorage.getItem(`notifications_${user.id}`) || '[]');
-    existingNotifications.unshift(notification);
-    localStorage.setItem(`notifications_${user.id}`, JSON.stringify(existingNotifications));
+    await supabaseDbService.createActivity({
+      user_id: selected.userId,
+      type: 'withdrawal',
+      description: `Withdrawal rejected. Reason: ${rejectionReason}`,
+      amount: selected.amountValue,
+    });
 
-    // Update withdrawal status
-    const withdrawalIndex = withdrawals.findIndex(w => w.id === id);
-    if (withdrawalIndex !== -1) {
-      withdrawals[withdrawalIndex].status = 'rejected';
-    }
-
+    setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: 'failed' } : w)));
     setStatusMsg(`✗ Withdrawal ${id} rejected. Notification sent to ${selected.user}`);
     setRejectionReason('');
     setTimeout(() => {
@@ -231,18 +196,17 @@ export default function AdminWithdrawals() {
   };
 
   const stats = [
-    { label: 'Pending Withdrawals', value: 2, icon: Clock, color: 'text-amber-600' },
-    { label: 'Total Completed', value: '$9,500', icon: CheckCircle, color: 'text-green-600' },
-    { label: 'Total Rejected', value: '$1,500', icon: XCircle, color: 'text-red-600' },
-    { label: 'Total Fees Collected', value: '$115', icon: DollarSign, color: 'text-blue-600' }
+    { label: 'Pending Withdrawals', value: withdrawals.filter((w) => w.status === 'pending').length, icon: Clock, color: 'text-amber-600' },
+    { label: 'Total Completed', value: withdrawals.filter((w) => w.status === 'completed').length, icon: CheckCircle, color: 'text-green-600' },
+    { label: 'Total Rejected', value: withdrawals.filter((w) => w.status === 'failed').length, icon: XCircle, color: 'text-red-600' },
+    { label: 'Total Fees Collected', value: '$0.00', icon: DollarSign, color: 'text-blue-600' }
   ];
 
   const selected = withdrawals.find(w => w.id === selectedWithdrawal);
 
-  const calculateNetAmount = (selected: typeof withdrawals[0]) => {
-    const amount = parseFloat(selected.amount.replace(/[$,]/g, ''));
-    const fee = parseFloat(selected.fee.replace(/[$,]/g, ''));
-    return `$${(amount - fee).toFixed(2)}`;
+  const calculateNetAmount = (selected: WithdrawalRow) => {
+    const amount = selected.amountValue;
+    return `$${amount.toFixed(2)}`;
   };
 
   return (
@@ -441,21 +405,10 @@ export default function AdminWithdrawals() {
                 <div>
                   <h3 className="text-lg font-bold mb-4">Withdrawal Evidence</h3>
                   <div className="border-2 border-dashed border-border rounded-lg p-4 bg-gray-50/50">
-                    {selected.uploadedImage ? (
-                      <div className="space-y-2">
-                        <img 
-                          src={selected.uploadedImage} 
-                          alt="Withdrawal evidence" 
-                          className="w-full rounded-lg border border-border max-h-96 object-contain"
-                        />
-                        <p className="text-xs text-muted-foreground text-center">Document: {selected.reference}</p>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No document provided</p>
-                      </div>
-                    )}
+                    <div className="text-center py-8">
+                      <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No document provided</p>
+                    </div>
                   </div>
                 </div>
 

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
 import React from 'react';
 import { motion } from 'motion/react';
 import AdminLayout from './AdminLayout';
@@ -7,19 +6,10 @@ import { supabaseDbService, type Account, type Profile, type Transaction } from 
 import { useAuthContext } from '../../../context/AuthProvider';
 import {
   Search,
-  Filter,
-  MoreVertical,
   Eye,
-  Ban,
   CheckCircle,
   X,
   Send,
-  Clock,
-  AlertCircle,
-  Upload,
-  FileText,
-  DollarSign
-  ,
   ArrowLeft,
   UserCheck,
   Mail,
@@ -31,10 +21,8 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 
-// Users are now fetched from bankingDb in component
 
 export default function AdminUsers() {
-  const navigate = useNavigate();
   const { user: adminUser } = useAuthContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -61,11 +49,9 @@ export default function AdminUsers() {
   const [senderAccountNumber, setSenderAccountNumber] = useState('');
   const [routingNumber, setRoutingNumber] = useState('');
   const [fundingMethod, setFundingMethod] = useState('bank_transfer');
-  const [transactionReference, setTransactionReference] = useState('');
   const [transferMessage, setTransferMessage] = useState('');
   const [fundError, setFundError] = useState('');
   const [fundSuccess, setFundSuccess] = useState('');
-  const [fundTransactions, setFundTransactions] = useState<Array<{id: string, userId: string, amount: string, currency: string, senderName: string, senderBank: string, method: string, date: string, status: string}>>([]);
   const [adminPrefs, setAdminPrefs] = useState<Record<string, any>>({});
 
   React.useEffect(() => {
@@ -224,19 +210,6 @@ export default function AdminUsers() {
       path: '/activity',
     });
 
-    const newTransaction = {
-      id: transactionId,
-      userId: selectedUser.profile.id || '',
-      amount: fundAmount,
-      currency: userCurrency,
-      senderName,
-      senderBank,
-      method: fundingMethod,
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      status: 'completed'
-    };
-    setFundTransactions([...fundTransactions, newTransaction]);
-
     const updatedUsers = users.map(u =>
       u.profile.id === selectedUser.profile.id
         ? { ...u, balanceValue: newBalanceValue, balance: formattedBalance }
@@ -253,7 +226,6 @@ export default function AdminUsers() {
       setSenderBank('');
       setSenderAccountNumber('');
       setRoutingNumber('');
-      setTransactionReference('');
       setTransferMessage('');
       setFundingMethod('bank_transfer');
       setShowFundModal(false);
@@ -261,16 +233,10 @@ export default function AdminUsers() {
     }, 3000);
   };
 
-  const mockPaymentProofs = [
-    { id: 1, date: 'Feb 20, 2024', amount: '$5,000', type: 'Bank Transfer', status: 'verified', proof: 'Transfer receipt.pdf' },
-    { id: 2, date: 'Feb 18, 2024', amount: '$2,500', type: 'Card', status: 'verified', proof: 'Card receipt.jpg' }
-  ];
-
-  const mockAdminActions = [
-    { id: 1, action: 'Account Activated', by: 'Admin John', date: 'Feb 21, 2024', details: 'Account activated after onboarding' },
-    { id: 2, action: 'Risk Assessment', by: 'Admin Sarah', date: 'Feb 20, 2024', details: 'Low risk score assigned' },
-    { id: 3, action: 'Account Created', by: 'System', date: 'Jan 15, 2024', details: 'User account created' }
-  ];
+  const totalUsers = users.length;
+  const unregisteredUsers = users.filter((u) => u.status === 'unregistered').length;
+  const activeUsers = users.filter((u) => u.status === 'active').length;
+  const restrictedUsers = users.filter((u) => u.status === 'restricted').length;
 
   // Helper: map a user name to a gradient string
   const getUserGradient = (name: string) => {
@@ -299,7 +265,10 @@ export default function AdminUsers() {
   };
 
   return (
-    <AdminLayout title="User Management" subtitle="Manage user accounts and permissions">
+    <AdminLayout
+      title="User Management"
+      subtitle={`${totalUsers} users â€¢ ${activeUsers} active â€¢ ${unregisteredUsers} unregistered â€¢ ${restrictedUsers} restricted`}
+    >
       {/* Admin Payment Details Section */}
       <Card className="p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Payment Details Configuration</h2>
@@ -342,7 +311,7 @@ export default function AdminUsers() {
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="restricted">Restricted</option>
-              <option value="under_review">Under Review</option>
+              <option value="unregistered">Unregistered</option>
             </select>
           </div>
         </Card>
@@ -444,7 +413,9 @@ export default function AdminUsers() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-                      <p className="text-2xl font-bold text-[#00b388]">{selectedUser.balance}</p>                  <p className="text-xs text-muted-foreground mt-1">{selectedUser.currency}</p>                    </div>
+                      <p className="text-2xl font-bold text-[#00b388]">{selectedUser.balance}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{selectedUser.currency}</p>
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Status</p>
@@ -605,6 +576,16 @@ export default function AdminUsers() {
             <div className="p-6 space-y-4">
 
               {fundError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3"
+                >
+                  <X className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{fundError}</p>
+                </motion.div>
+              )}
+              {fundSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}

@@ -120,7 +120,7 @@ Services in `src/features/admin/services/adminService.ts`.
 VITE_API_URL=http://localhost:3000/api
 VITE_APP_NAME=chime-prototype
 VITE_FEATURE_FLAGS={}
-```
+VITE_SUPABASE_URL=\r\nVITE_SUPABASE_ANON_KEY=\r\nVITE_SITE_URL=\r\nVITE_VERCEL_PROJECT_ID=prj_gRJU3Rwni95hywxzeL47ZuFTm2y2\r\n```
 
 All variables validated on app startup. Missing required vars throw error.
 

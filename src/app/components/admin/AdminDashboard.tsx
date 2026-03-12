@@ -1,84 +1,55 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import {
-  LayoutDashboard,
-  Users,
-  Receipt,
-  ArrowUpRight,
-  ArrowDownRight,
-  MessageSquare,
-  Settings,
-  LogOut,
-  UserCheck,
-  TrendingUp,
-  UserPlus
-} from 'lucide-react';
-import { Logo } from '../Logo';
+import { Users, Receipt, ArrowDownRight, MessageSquare, Settings } from 'lucide-react';
 import { Card } from '../ui/card';
 import AdminLayout from './AdminLayout';
 import AdminChat from './AdminChat';
-import { useAuthContext } from '../../../context/AuthProvider';
-import { bankingDb } from '../../../services/bankingDatabase';
+import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { logout } = useAuthContext();
   const [showChat, setShowChat] = useState(false);
   const [notificationCounts, setNotificationCounts] = useState({
     chat: 0,
     users: 0,
     transactions: 0,
     deposits: 0,
-    unregistered: 0,
   });
 
-  // Calculate notification counts
   useEffect(() => {
-    const updateCounts = () => {
-      // TODO: Connect to Supabase for realtime counts
-      // Count unread chat messages
-      const chatMessages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
-      const unreadChat = chatMessages.filter((msg: any) => msg.senderType === 'user' && !msg.read).length;
+    let isMounted = true;
 
-      // Count users
-      const allUsers = bankingDb.getAllUsers();
-      const unregisteredUsers = allUsers.filter(u => u.status === 'UNREGISTERED').length;
-      const totalUsers = allUsers.length;
+    const updateCounts = async () => {
+      const [profiles, transactions, unreadChat] = await Promise.all([
+        supabaseDbService.getAllProfiles(),
+        supabaseDbService.getAllTransactions(),
+        supabaseDbService.getUnreadAdminCount(),
+      ]);
 
-      // Count pending transactions (from localStorage)
-      const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-      const pendingTransactions = transactions.filter((t: any) => t.status === 'pending').length;
+      const pendingTransactions = transactions.filter((t: Transaction) => t.status === 'pending').length;
+      const pendingDeposits = transactions.filter((t: Transaction) => t.status === 'pending' && t.type === 'credit').length;
 
-      // Count pending deposits
-      const addMoneyStatus = localStorage.getItem('addMoneyVerificationStatus');
-      const pendingDeposits = addMoneyStatus === 'pending' ? 1 : 0;
-
+      if (!isMounted) return;
       setNotificationCounts({
         chat: unreadChat,
-        users: totalUsers,
+        users: profiles.length,
         transactions: pendingTransactions,
         deposits: pendingDeposits,
-        unregistered: unregisteredUsers,
       });
     };
 
     updateCounts();
-    window.addEventListener('chatUpdate', updateCounts);
-    window.addEventListener('storage', updateCounts);
-    const interval = setInterval(updateCounts, 2000);
-
+    const interval = setInterval(updateCounts, 5000);
     return () => {
-      window.removeEventListener('chatUpdate', updateCounts);
-      window.removeEventListener('storage', updateCounts);
+      isMounted = false;
       clearInterval(interval);
     };
   }, []);
 
   const adminPages = [
     { icon: MessageSquare, label: 'Customer Care', path: null, color: '#8b5cf6', bgColor: '#ede9fe', action: () => setShowChat(true), badge: notificationCounts.chat },
-    { icon: UserPlus, label: 'Unregistered Users', path: '/admin/unregistered', color: '#ec4899', bgColor: '#fce7f3', badge: notificationCounts.unregistered },
     { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', badge: notificationCounts.users },
     { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', badge: notificationCounts.transactions },
     { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', badge: notificationCounts.deposits },

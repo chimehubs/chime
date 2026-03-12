@@ -1,5 +1,9 @@
 # Production Deployment Checklist
 
+## Deployment Target (Vercel)
+- Project ID: `prj_gRJU3Rwni95hywxzeL47ZuFTm2y2`
+- Site URL: set your Vercel domain and mirror it in `VITE_SITE_URL` for Google Auth redirects.
+
 ## Phase 1: Code Cleanup ✅ COMPLETED
 - [x] Remove all mock user data from AdminUsers
 - [x] Remove all mock deposits from AdminDeposits
@@ -118,10 +122,11 @@
 
 ### 1. Environment Variables
 ```
-src/.env.production
-REACT_APP_API_BASE_URL=https://api.chime.com
-REACT_APP_ENV=production
-REACT_APP_LOG_LEVEL=error
+./.env.production
+VITE_API_URL=https://api.chime.com
+VITE_APP_NAME=chime
+VITE_SITE_URL=https://your-vercel-domain.vercel.app
+VITE_VERCEL_PROJECT_ID=prj_gRJU3Rwni95hywxzeL47ZuFTm2y2
 ```
 
 ### 2. API Client Configuration

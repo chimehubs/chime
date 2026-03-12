@@ -4,33 +4,93 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, XCircle, Clock, DollarSign, X, Mail, Phone, Calendar, FileText } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
 import AdminLayout from './AdminLayout';
-import { bankingDb } from '../../../services/bankingDatabase';
+import { supabaseDbService, type Transaction, type Profile, type Account } from '../../../services/supabaseDbService';
 
-// Deposits are now fetched from bankingDb and localStorage in component
+interface DepositRow {
+  id: string;
+  userId: string;
+  accountId: string;
+  user: string;
+  email: string;
+  amount: string;
+  amountValue: number;
+  currency: string;
+  method: string;
+  status: string;
+  created: string;
+  reference: string;
+}
 
 export default function AdminDeposits() {
-  const [deposits, setDeposits] = useState<any[]>([]);
+  const [deposits, setDeposits] = useState<DepositRow[]>([]);
   const [selectedDeposit, setSelectedDeposit] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [showFullPanel, setShowFullPanel] = useState(false);
+  const [balancesByAccount, setBalancesByAccount] = useState<Map<string, number>>(new Map());
 
   React.useEffect(() => {
-    // Fetch deposits data from localStorage
-    // In production: fetch from backend API
-    const storedDeposits = JSON.parse(localStorage.getItem('fundTransactions') || '[]');
-    setDeposits(storedDeposits);
+    const loadDeposits = async () => {
+      const [profiles, accounts, transactions] = await Promise.all([
+        supabaseDbService.getAllProfiles(),
+        supabaseDbService.getAllAccounts(),
+        supabaseDbService.getAllTransactions(),
+      ]);
+
+      const profileById = new Map(profiles.map((p) => [p.id, p]));
+      const accountById = new Map(accounts.map((a) => [a.id, a]));
+
+      const balanceMap = new Map<string, number>();
+      transactions.forEach((tx: Transaction) => {
+        const current = balanceMap.get(tx.account_id) || 0;
+        balanceMap.set(tx.account_id, tx.type === 'credit' ? current + Number(tx.amount) : current - Number(tx.amount));
+      });
+      setBalancesByAccount(balanceMap);
+
+      const depositRows = transactions
+        .filter((tx) => tx.type === 'credit')
+        .map((tx) => {
+          const profile = profileById.get(tx.user_id) as Profile | undefined;
+          const account = accountById.get(tx.account_id) as Account | undefined;
+          const userName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'User';
+          const currency = tx.currency || profile?.currency || account?.currency || 'USD';
+          const amountValue = Number(tx.amount || 0);
+          const method = (tx.description || '').toLowerCase().includes('paypal')
+            ? 'PayPal'
+            : (tx.description || '').toLowerCase().includes('gift')
+            ? 'Gift Card'
+            : 'Bank Transfer';
+
+          return {
+            id: tx.id,
+            userId: tx.user_id,
+            accountId: tx.account_id,
+            user: userName,
+            email: profile?.email || 'N/A',
+            amount: `${getCurrencySymbol(currency)}${amountValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`,
+            amountValue,
+            currency,
+            method,
+            status: tx.status,
+            created: tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'N/A',
+            reference: tx.id,
+          } as DepositRow;
+        });
+
+      setDeposits(depositRows);
+    };
+
+    loadDeposits();
   }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
         return 'bg-amber-100 text-amber-700';
-      case 'approved':
+      case 'completed':
         return 'bg-green-100 text-green-700';
-      case 'rejected':
+      case 'failed':
         return 'bg-red-100 text-red-700';
       default:
         return 'bg-gray-100 text-gray-700';
@@ -48,71 +108,47 @@ export default function AdminDeposits() {
     return colors[hash % colors.length];
   };
 
-  const handleApprove = (id: string) => {
+  const getCurrencySymbol = (currency: string) => {
+    const symbols: { [key: string]: string } = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'INR': '₹',
+      'JPY': '¥',
+      'AUD': 'A$',
+      'CAD': 'C$'
+    };
+    return symbols[currency] || '$';
+  };
+
+  const handleApprove = async (id: string) => {
     if (!selected) return;
 
-    // Find user by email
-    const allUsers = bankingDb.getAllUsers();
-    const user = allUsers.find((u: any) => u.email === selected.email);
-    if (!user) {
-      setStatusMsg('User not found');
-      return;
-    }
+    await supabaseDbService.updateTransaction(id, { status: 'completed' });
 
-    // Extract deposit amount (remove $ and commas)
-    const amountStr = typeof selected.amount === 'string' ? selected.amount : String(selected.amount);
-    const depositAmount = parseFloat(amountStr.replace(/[$,]/g, ''));
-    
-    // Extract current balance as number
-    const balance = user?.balance ?? '0';
-    const balanceStr = typeof balance === 'string' ? balance : String(balance);
-    const currentBalance = parseFloat(balanceStr.replace(/[$,]/g, '')) || 0;
-    const newBalance = currentBalance + depositAmount;
-    
-    // Get currency symbol
-    const getCurrencySymbol = (currency: string) => {
-      const symbols: { [key: string]: string } = {
-        'USD': '$',
-        'EUR': '€',
-        'GBP': '£',
-        'INR': '₹',
-        'JPY': '¥',
-        'AUD': 'A$',
-        'CAD': 'C$'
-      };
-      return symbols[currency] || '$';
-    };
+    const currencySymbol = getCurrencySymbol(selected.currency || 'USD');
+    const currentBalance = balancesByAccount.get(selected.accountId) || 0;
+    const newBalanceValue = currentBalance + selected.amountValue;
+    const formattedNewBalance = `${currencySymbol}${newBalanceValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-    const currencySymbol = getCurrencySymbol(user.currency || 'USD');
-    const formattedNewBalance = `${currencySymbol}${newBalance.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-
-    // Create credit notification for user
-    const notification = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'credit_alert',
+    await supabaseDbService.createNotification({
+      user_id: selected.userId,
       title: 'Deposit Approved ✓',
-      message: `You have received ${selected.amount} from your deposit via ${selected.method}. Your new balance is ${formattedNewBalance}`,
-      amount: `+${selected.amount}`,
-      status: 'success',
-      timestamp: new Date().toLocaleDateString(),
-      reference: selected.reference
-    };
+      message: `You have received ${selected.amount} from your deposit via ${selected.method}. Your new balance is ${formattedNewBalance}.`,
+      type: 'credit',
+      read: false,
+      path: '/activity',
+    });
 
-    // Store notification in localStorage
-    const existingNotifications = JSON.parse(localStorage.getItem(`notifications_${user.id}`) || '[]');
-    existingNotifications.unshift(notification);
-    localStorage.setItem(`notifications_${user.id}`, JSON.stringify(existingNotifications));
+    await supabaseDbService.createActivity({
+      user_id: selected.userId,
+      type: 'deposit',
+      description: `Deposit approved via ${selected.method}`,
+      amount: selected.amountValue,
+    });
 
-    // Update user balance in localStorage
-    localStorage.setItem(`user_balance_${user.id}`, formattedNewBalance);
-
-    // Update deposit status
-    const depositIndex = deposits.findIndex(d => d.id === id);
-    if (depositIndex !== -1) {
-      deposits[depositIndex].status = 'approved';
-    }
-
-    setStatusMsg(`✓ Deposit ${id} approved. Credit alert sent to ${selected.user}. Balance updated to ${formattedNewBalance}`);
+    setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'completed' } : d)));
+    setStatusMsg(`✓ Deposit ${id} approved. Credit alert sent to ${selected.user}.`);
     setTimeout(() => {
       setStatusMsg('');
       setShowFullPanel(false);
@@ -120,7 +156,7 @@ export default function AdminDeposits() {
     }, 2500);
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     if (!rejectionReason.trim()) {
       setStatusMsg('Please enter a rejection reason');
       return;
@@ -128,38 +164,25 @@ export default function AdminDeposits() {
 
     if (!selected) return;
 
-    // Find user by email
-    const allUsers = bankingDb.getAllUsers();
-    const user = allUsers.find((u: any) => u.email === selected.email);
-    if (!user) {
-      setStatusMsg('User not found');
-      return;
-    }
+    await supabaseDbService.updateTransaction(id, { status: 'failed' });
 
-    // Create rejection notification with admin reason
-    const notification = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'transaction_failed',
+    await supabaseDbService.createNotification({
+      user_id: selected.userId,
       title: 'Deposit Rejected ✗',
       message: `Your deposit of ${selected.amount} via ${selected.method} has been rejected. Reason: ${rejectionReason}`,
-      amount: `-${selected.amount}`,
-      status: 'failed',
-      timestamp: new Date().toLocaleDateString(),
-      reference: selected.reference,
-      adminReason: rejectionReason
-    };
+      type: 'failed',
+      read: false,
+      path: '/activity',
+    });
 
-    // Store notification in localStorage
-    const existingNotifications = JSON.parse(localStorage.getItem(`notifications_${user.id}`) || '[]');
-    existingNotifications.unshift(notification);
-    localStorage.setItem(`notifications_${user.id}`, JSON.stringify(existingNotifications));
+    await supabaseDbService.createActivity({
+      user_id: selected.userId,
+      type: 'deposit',
+      description: `Deposit rejected. Reason: ${rejectionReason}`,
+      amount: selected.amountValue,
+    });
 
-    // Update deposit status
-    const depositIndex = deposits.findIndex(d => d.id === id);
-    if (depositIndex !== -1) {
-      deposits[depositIndex].status = 'rejected';
-    }
-
+    setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: 'failed' } : d)));
     setStatusMsg(`✗ Deposit ${id} rejected. Notification sent to ${selected.user}`);
     setRejectionReason('');
     setTimeout(() => {
@@ -170,10 +193,10 @@ export default function AdminDeposits() {
   };
 
   const stats = [
-    { label: 'Pending Deposits', value: 2, icon: Clock, color: 'text-amber-600' },
-    { label: 'Total Approved', value: '$27,500', icon: CheckCircle, color: 'text-green-600' },
-    { label: 'Total Rejected', value: '$1,500', icon: XCircle, color: 'text-red-600' },
-    { label: 'Avg. Deposit', value: '$4,750', icon: DollarSign, color: 'text-blue-600' }
+    { label: 'Pending Deposits', value: deposits.filter((d) => d.status === 'pending').length, icon: Clock, color: 'text-amber-600' },
+    { label: 'Total Approved', value: deposits.filter((d) => d.status === 'completed').length, icon: CheckCircle, color: 'text-green-600' },
+    { label: 'Total Rejected', value: deposits.filter((d) => d.status === 'failed').length, icon: XCircle, color: 'text-red-600' },
+    { label: 'Avg. Deposit', value: deposits.length ? `$${(deposits.reduce((sum, d) => sum + d.amountValue, 0) / deposits.length).toFixed(2)}` : '$0.00', icon: DollarSign, color: 'text-blue-600' }
   ];
 
   const selected = deposits.find(d => d.id === selectedDeposit);
@@ -338,7 +361,7 @@ export default function AdminDeposits() {
                       <Phone className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Phone</p>
-                        <p className="font-medium">{selected.phone}</p>
+                        <p className="font-medium">Not provided</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -351,40 +374,14 @@ export default function AdminDeposits() {
                   </div>
                 </div>
 
-                {/* Bank Information */}
-                <div>
-                  <h3 className="text-lg font-bold mb-4">Bank Information</h3>
-                  <div className="space-y-3 bg-amber-50/30 border border-amber-200/50 p-4 rounded-lg">
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">Bank Name</p>
-                      <p className="font-medium">{selected.bankName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">Account Number</p>
-                      <p className="font-medium font-mono">{selected.accountNumber}</p>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Media Display - Uploaded Image */}
                 <div>
                   <h3 className="text-lg font-bold mb-4">Upload Evidence</h3>
                   <div className="border-2 border-dashed border-border rounded-lg p-4 bg-gray-50/50">
-                    {selected.uploadedImage ? (
-                      <div className="space-y-2">
-                        <img 
-                          src={selected.uploadedImage} 
-                          alt="Deposit evidence" 
-                          className="w-full rounded-lg border border-border max-h-96 object-contain"
-                        />
-                        <p className="text-xs text-muted-foreground text-center">Uploaded: {selected.reference}</p>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No upload evidence provided</p>
-                      </div>
-                    )}
+                    <div className="text-center py-8">
+                      <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No upload evidence provided</p>
+                    </div>
                   </div>
                 </div>
 
@@ -422,7 +419,7 @@ export default function AdminDeposits() {
 
                 {selected.status !== 'pending' && (
                   <div className={`p-4 rounded-lg text-center ${
-                    selected.status === 'approved' 
+                    selected.status === 'completed' 
                       ? 'bg-green-50 text-green-700' 
                       : 'bg-red-50 text-red-700'
                   }`}>

@@ -265,6 +265,18 @@ class SupabaseDbService {
     return (data || []) as Activity[];
   }
 
+  async getAllActivities(limit = 200): Promise<Activity[]> {
+    const client = getClient();
+    if (!client) return [];
+    const { data, error } = await client
+      .from('activities')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data || []) as Activity[];
+  }
+
   async createActivity(payload: Omit<Activity, 'id' | 'created_at'>): Promise<Activity | null> {
     const client = getClient();
     if (!client) return null;
@@ -391,6 +403,18 @@ class SupabaseDbService {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
       .limit(limit);
+    if (error) return [];
+    return (data || []) as ChatMessage[];
+  }
+
+  async getChatMessagesForThreads(threadIds: string[]): Promise<ChatMessage[]> {
+    const client = getClient();
+    if (!client || threadIds.length === 0) return [];
+    const { data, error } = await client
+      .from('chat_messages')
+      .select('*')
+      .in('thread_id', threadIds)
+      .order('created_at', { ascending: true });
     if (error) return [];
     return (data || []) as ChatMessage[];
   }
