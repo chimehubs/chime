@@ -44,8 +44,8 @@ export default function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 rounded-2xl border border-emerald-200 bg-white/95 p-4 shadow-xl backdrop-blur">
-      <div className="flex items-center gap-4">
+    <div className="fixed inset-x-4 bottom-4 z-50 rounded-2xl border border-emerald-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:left-1/2 sm:right-auto sm:w-full sm:max-w-md sm:-translate-x-1/2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <img
           src="/assets/app-icon-rounded.png"
           alt="chime app icon"
@@ -55,7 +55,7 @@ export default function InstallPrompt() {
           <p className="text-sm font-semibold text-slate-900">Install chime</p>
           <p className="text-xs text-slate-500">Get faster access and a full-screen experience.</p>
         </div>
-        <Button onClick={handleInstall} className="bg-[#00b388] hover:bg-[#009670] text-white">
+        <Button onClick={handleInstall} className="w-full bg-[#00b388] hover:bg-[#009670] text-white sm:w-auto">
           Install
         </Button>
       </div>

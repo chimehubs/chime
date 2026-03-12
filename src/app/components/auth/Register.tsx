@@ -25,7 +25,10 @@ export default function Register() {
 
     try {
       const client = getClient();
-      if (!client) throw new Error('Supabase not configured');
+      if (!client) {
+        setError('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+        return;
+      }
       const redirectTo = ENV.VITE_SITE_URL || window.location.origin;
       const { error: oauthError } = await client.auth.signInWithOAuth({
         provider: 'google',
@@ -46,6 +49,12 @@ export default function Register() {
     setIsLoading(true);
 
     try {
+      const client = getClient();
+      if (!client) {
+        setError('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+        setIsLoading(false);
+        return;
+      }
       if (!email || !password) {
         setError('Please fill in all fields');
         setIsLoading(false);

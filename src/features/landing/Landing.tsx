@@ -14,7 +14,7 @@ const Landing: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="bg-white">
+      <main className="bg-white overflow-x-hidden">
         <HeroSection />
         <TrustBar />
         <FeaturesSection />
