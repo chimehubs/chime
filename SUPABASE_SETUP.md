@@ -13,7 +13,10 @@ Use this setup for a fresh Supabase project. The app now has one canonical SQL b
 ## 2) Run SQL
 1. Open SQL Editor.
 2. Run `supabase/schema.sql`.
-3. Run `supabase/bootstrap_admin.sql` (after at least one user signs up) and replace the admin email.
+3. Run `supabase/bootstrap_admin.sql` to promote `adminchime@gmail.com` to admin.
+4. Set the auth password by running:
+   - `node scripts/setup_admin_user.cjs`
+   - with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` exported in your shell.
 
 ## 3) Configure environment
 Copy template values into your local and deployment env settings.

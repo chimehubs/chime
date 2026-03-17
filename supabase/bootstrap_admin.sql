@@ -1,10 +1,10 @@
 ﻿-- Bootstrap Admin + Validation Queries
 -- Run AFTER schema.sql and after the target user has signed up.
 
--- 1) Promote an existing user to admin (replace email)
+-- 1) Promote an existing user to admin
 update public.profiles
 set role = 'admin', status = 'ACTIVE'
-where email = 'admin@your-domain.example.com';
+where email = 'adminchime@gmail.com';
 
 -- 2) Confirm promoted admin users
 select id, email, role, status, created_at
