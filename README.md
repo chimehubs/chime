@@ -120,7 +120,10 @@ Services in `src/features/admin/services/adminService.ts`.
 VITE_API_URL=http://localhost:3000/api
 VITE_APP_NAME=chime-prototype
 VITE_FEATURE_FLAGS={}
-VITE_SUPABASE_URL=\r\nVITE_SUPABASE_ANON_KEY=\r\nVITE_SITE_URL=\r\nVITE_VERCEL_PROJECT_ID=prj_gRJU3Rwni95hywxzeL47ZuFTm2y2\r\n```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_SITE_URL=
+```
 
 All variables validated on app startup. Missing required vars throw error.
 
@@ -168,8 +171,8 @@ npm run build
 # Preview locally
 npm run preview
 
-# Deploy to Vercel / Netlify / S3 + CloudFront
-vercel deploy  # or netlify deploy
+# Deploy to Netlify
+netlify deploy --prod
 ```
 
 **Pre-deployment checklist:**

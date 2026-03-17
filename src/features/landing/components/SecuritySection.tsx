@@ -79,7 +79,6 @@ export const SecuritySection: React.FC = () => {
           ))}
         </motion.div>
 
-        {/* FDIC Compliance Banner */}
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -91,11 +90,11 @@ export const SecuritySection: React.FC = () => {
           <div className="flex items-center justify-center gap-3 mb-3">
             <Shield className="w-6 h-6 text-[#00b388]" />
             <p className="text-lg font-semibold text-[#00b388]">
-              FDIC Insured & Compliant
+              Compliance-Ready Controls
             </p>
           </div>
           <p className="text-charcoal-700 max-w-2xl mx-auto">
-            Your deposits are insured up to $250,000. We comply with all federal banking regulations, anti-money laundering laws, and data protection standards.
+            We implement security controls aligned with modern regulatory and data protection standards.
           </p>
         </motion.div>
       </div>

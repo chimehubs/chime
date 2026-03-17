@@ -12,8 +12,8 @@ interface TrustItem {
 const trustItems: TrustItem[] = [
   {
     icon: <Shield className="w-6 h-6 text-[#00b388]" />,
-    label: 'FDIC Insured',
-    sublabel: 'Up to $250,000',
+    label: 'Fraud Monitoring',
+    sublabel: 'Continuous Activity Checks',
   },
   {
     icon: <Lock className="w-6 h-6 text-[#00b388]" />,

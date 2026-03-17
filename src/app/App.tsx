@@ -17,6 +17,22 @@ import AdminTransactions from './components/admin/AdminTransactions';
 import AdminDeposits from './components/admin/AdminDeposits';
 import AdminSettings from './components/admin/AdminSettings';
 import InstallPrompt from './components/pwa/InstallPrompt';
+import About from '../pages/About';
+import PrivacyPolicy from '../pages/PrivacyPolicy';
+import Terms from '../pages/Terms';
+import Contact from '../pages/Contact';
+import Features from '../pages/Features';
+import Security from '../pages/Security';
+import Pricing from '../pages/Pricing';
+import MobileApp from '../pages/MobileApp';
+import Careers from '../pages/Careers';
+import Press from '../pages/Press';
+import Blog from '../pages/Blog';
+import Compliance from '../pages/Compliance';
+import Licenses from '../pages/Licenses';
+import HelpCenter from '../pages/HelpCenter';
+import SystemStatus from '../pages/SystemStatus';
+import Faqs from '../pages/Faqs';
 import { ProtectedRoute, AdminRoute } from '../routes/ProtectedRoute';
 
 export default function App() {
@@ -25,6 +41,22 @@ export default function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Landing />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/security" element={<Security />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/mobile-app" element={<MobileApp />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/careers" element={<Careers />} />
+        <Route path="/press" element={<Press />} />
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/compliance" element={<Compliance />} />
+        <Route path="/licenses" element={<Licenses />} />
+        <Route path="/help-center" element={<HelpCenter />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/system-status" element={<SystemStatus />} />
+        <Route path="/faqs" element={<Faqs />} />
 
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />

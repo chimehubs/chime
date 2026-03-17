@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import { Logo } from '../../../app/components/Logo';
 
 export const Navigation: React.FC = () => {
   const navigate = useNavigate();
@@ -20,16 +21,10 @@ export const Navigation: React.FC = () => {
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => navigate('/')}
         >
-          <img
-            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXoL24HHFZY9sDPlej_aDDojZL8felyKfctw&s"
-            alt="Chime Logo"
-            className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 object-contain"
-          />
-          <img
-            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS7Cw9mOE-9j4eqntzmCEZLobhu9blcCexiqQ&s"
-            alt="Chime Next"
-            className="h-8 object-contain hidden sm:block"
-          />
+          <div className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
+            <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
+          </div>
+          <span className="text-xl font-semibold text-charcoal-900 hidden sm:block">Chimahub</span>
         </motion.div>
 
         {/* Right Side - Buttons */}

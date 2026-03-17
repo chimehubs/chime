@@ -106,7 +106,7 @@ In Supabase dashboard → Authentication → Users:
 5. Check that unread count badge updates on admin dashboard
 
 ### Step 6: Deploy
-Set these env vars in your deployment platform (Vercel, Netlify, etc):
+Set these env vars in your Netlify environment:
 ```
 VITE_SUPABASE_URL=https://rwfgwwzodjbudoothohs.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_BZ2krGN-tgrz78_y2HiHYg_tPMeCJAY

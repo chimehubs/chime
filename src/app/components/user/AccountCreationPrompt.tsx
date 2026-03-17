@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, CheckCircle, Zap, Globe, Landmark, Gift } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -65,7 +65,7 @@ export default function AccountCreationPrompt({ isOpen, onClose, onStartCreation
                     <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600" />
                   </div>
                   <h2 className="text-xl sm:text-2xl font-bold text-charcoal-900 mb-1 sm:mb-2">
-                    Create Your Chime Account
+                    Create Your Chimahub Account
                   </h2>
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Get started with premium banking features and benefits
@@ -201,7 +201,7 @@ export default function AccountCreationPrompt({ isOpen, onClose, onStartCreation
                   transition={{ delay: 0.3 }}
                   className="text-center text-xs text-muted-foreground mt-2 sm:mt-4"
                 >
-                  Takes less than 2 minutes • Free account upgrade
+                  Takes less than 2 minutes - Free account upgrade
                 </motion.p>
               </div>
             </Card>
@@ -211,3 +211,5 @@ export default function AccountCreationPrompt({ isOpen, onClose, onStartCreation
     </AnimatePresence>
   );
 }
+
+

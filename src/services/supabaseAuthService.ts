@@ -11,7 +11,8 @@ interface AuthResponse {
 export async function signUpWithSupabase(
   email: string,
   password: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  emailRedirectTo?: string
 ): Promise<AuthResponse> {
   const client = getClient();
   if (!client) {
@@ -23,7 +24,8 @@ export async function signUpWithSupabase(
       email,
       password,
       options: {
-        data: metadata || {}
+        data: metadata || {},
+        emailRedirectTo,
       }
     });
 
@@ -59,7 +61,7 @@ export async function signInWithSupabase(
       session: data.session || undefined
     };
   } catch (err) {
-return { error: err as AuthError };
+    return { error: err as AuthError };
   }
 }
 

@@ -1,35 +1,35 @@
-**Supabase Auth Setup**
+﻿# Supabase Auth Setup
 
-1) Enable Auth in your Supabase project
-- In the Supabase dashboard, go to Authentication → Settings and enable email/password providers.
+This app uses Supabase Auth with **email/password only**.
 
-2) Configure roles
-- You can use JWT claims (e.g., `role`) to differentiate `admin` vs `user` in policies. When creating an admin user, set the `role` claim in a custom function or manage via database `users` table.
+## 1) Providers
+In Supabase:
+- `Authentication -> Providers`
+- Enable `Email`
+- Disable `Google`
 
-3) Client-side auth helper (examples)
-- Sign up:
+## 2) User profile creation
+`supabase/schema.sql` installs a trigger on `auth.users` that auto-creates `public.profiles` for each new signup.
 
-```js
-import supabaseClient from './src/services/supabaseClient';
-const client = supabaseClient.getClient();
-await client.auth.signUp({ email, password });
+## 3) Roles
+Roles are stored in `public.profiles.role` (`user` or `admin`).
+
+Promote an admin after signup:
+```sql
+update public.profiles
+set role = 'admin', status = 'ACTIVE'
+where email = 'admin@your-domain.example.com';
 ```
 
-- Sign in:
+## 4) Client auth methods in code
+- Sign up: `signUpWithSupabase(email, password, ...)`
+- Sign in: `signInWithSupabase(email, password)`
+- Sign out: `signOutFromSupabase()`
 
-```js
-await client.auth.signInWithPassword({ email, password });
-```
+Source file:
+- `src/services/supabaseAuthService.ts`
 
-- Sign out:
-
-```js
-await client.auth.signOut();
-```
-
-4) Admin vs User
-- For server actions (e.g., marking messages read globally), use a server-side service role key and the server example in `scripts/supabase_service_examples.js`.
-
-5) Notes
-- Ensure you do not expose service role keys to the browser.
-- Test RLS policies with different user roles and the Supabase SQL editor.
+## 5) Security notes
+- Never expose service role keys in frontend env files.
+- Keep redirect URLs strict and explicit.
+- Use RLS from `supabase/schema.sql` for all data access control.

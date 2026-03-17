@@ -7,13 +7,16 @@ import { store } from './store';
 import { AuthProvider } from './context/AuthProvider';
 import { ToastProvider } from './context/ToastProvider';
 import ErrorBoundary from './lib/ErrorBoundary';
+import PreviewAccessGate from './app/components/security/PreviewAccessGate';
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <Provider store={store}>
       <AuthProvider>
         <ToastProvider>
-          <App />
+          <PreviewAccessGate>
+            <App />
+          </PreviewAccessGate>
         </ToastProvider>
       </AuthProvider>
     </Provider>

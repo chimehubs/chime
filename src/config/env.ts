@@ -5,7 +5,6 @@ type RequiredEnv = {
   VITE_LOG_LEVEL?: string;
   VITE_IS_PRODUCTION?: boolean;
   VITE_SITE_URL?: string;
-  VITE_VERCEL_PROJECT_ID?: string;
 };
 
 function getEnv(): RequiredEnv {
@@ -18,12 +17,11 @@ function getEnv(): RequiredEnv {
 
   const vars: RequiredEnv = {
     VITE_API_URL: env.VITE_API_URL || fallbackApiUrl,
-    VITE_APP_NAME: env.VITE_APP_NAME || 'chime',
+    VITE_APP_NAME: env.VITE_APP_NAME || 'chimahub',
     VITE_FEATURE_FLAGS: env.VITE_FEATURE_FLAGS,
     VITE_LOG_LEVEL: env.VITE_LOG_LEVEL || 'warn',
     VITE_IS_PRODUCTION: env.VITE_IS_PRODUCTION || env.MODE === 'production',
     VITE_SITE_URL: env.VITE_SITE_URL,
-    VITE_VERCEL_PROJECT_ID: env.VITE_VERCEL_PROJECT_ID,
   };
 
   if (!vars.VITE_API_URL) {

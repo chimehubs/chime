@@ -6,8 +6,8 @@ import AdminLayout from './AdminLayout';
 
 export default function AdminSettings() {
   const [formData, setFormData] = useState({
-    platformName: 'Chime Banking',
-    supportEmail: 'support@chime.com',
+    platformName: 'Chima Finance',
+    supportEmail: 'support@chimafinance.com',
     maxTransactionLimit: '50000',
     dailyWithdrawalLimit: '10000',
     maintenanceMode: false,
@@ -36,8 +36,8 @@ export default function AdminSettings() {
 
   const handleReset = () => {
     setFormData({
-      platformName: 'Chime Banking',
-      supportEmail: 'support@chime.com',
+      platformName: 'Chima Finance',
+      supportEmail: 'support@chimafinance.com',
       maxTransactionLimit: '50000',
       dailyWithdrawalLimit: '10000',
       maintenanceMode: false,

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Linkedin, Twitter, Github } from 'lucide-react';
+import { Logo } from '../../../app/components/Logo';
 
 interface FooterLink {
   label: string;
@@ -18,7 +19,7 @@ const footerSections: FooterSection[] = [
       { label: 'Features', href: '/features' },
       { label: 'Security', href: '/security' },
       { label: 'Pricing', href: '/pricing' },
-      { label: 'Mobile App', href: '/app' },
+      { label: 'Mobile App', href: '/mobile-app' },
     ],
   },
   {
@@ -33,7 +34,7 @@ const footerSections: FooterSection[] = [
   {
     title: 'Legal',
     links: [
-      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
       { label: 'Terms of Service', href: '/terms' },
       { label: 'Compliance', href: '/compliance' },
       { label: 'Licenses', href: '/licenses' },
@@ -42,9 +43,9 @@ const footerSections: FooterSection[] = [
   {
     title: 'Support',
     links: [
-      { label: 'Help Center', href: '/help' },
+      { label: 'Help Center', href: '/help-center' },
       { label: 'Contact Us', href: '/contact' },
-      { label: 'System Status', href: '/status' },
+      { label: 'System Status', href: '/system-status' },
       { label: 'FAQs', href: '/faqs' },
     ],
   },
@@ -54,7 +55,7 @@ const socialLinks = [
   { icon: <Twitter className="w-5 h-5" />, href: 'https://twitter.com', label: 'Twitter' },
   { icon: <Linkedin className="w-5 h-5" />, href: 'https://linkedin.com', label: 'LinkedIn' },
   { icon: <Github className="w-5 h-5" />, href: 'https://github.com', label: 'GitHub' },
-  { icon: <Mail className="w-5 h-5" />, href: 'mailto:support@chime.com', label: 'Email' },
+  { icon: <Mail className="w-5 h-5" />, href: 'mailto:support@chimafinance.com', label: 'Email' },
 ];
 
 export const Footer: React.FC = () => {
@@ -66,15 +67,13 @@ export const Footer: React.FC = () => {
           {/* Brand Section */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXoL24HHFZY9sDPlej_aDDojZL8felyKfctw&s"
-                alt="Chime Logo"
-                className="w-8 h-8 rounded object-contain"
-              />
-              <span className="text-xl font-bold">Chime Next</span>
+              <div className="w-8 h-8 rounded bg-white/20 flex items-center justify-center">
+                <Logo className="w-5 h-5" innerClassName="text-white font-bold text-sm" />
+              </div>
+              <span className="text-xl font-bold">Chimahub</span>
             </div>
             <p className="text-white/85 text-sm leading-relaxed">
-              Modern banking for the way you live. Secure, instant, and always on your side.
+              Secure digital banking for modern financial management.
             </p>
           </div>
 
@@ -102,9 +101,11 @@ export const Footer: React.FC = () => {
         <div className="border-t border-white/20 py-8" />
 
         {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <p className="text-white/80 text-sm mb-6 md:mb-0">
-            &copy; {new Date().getFullYear()} Chime Banking. All rights reserved.
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-white/80 text-sm text-center md:text-left">
+            &copy; 2026 Chima Finance Ltd. Contact: support@chimafinance.com.{' '}
+            <a className="underline" href="/privacy-policy">Privacy Policy</a> |{' '}
+            <a className="underline" href="/terms">Terms</a>.
           </p>
 
           {/* Social Links */}
@@ -122,13 +123,6 @@ export const Footer: React.FC = () => {
               </a>
             ))}
           </div>
-        </div>
-
-        {/* Trust Info */}
-        <div className="mt-8 pt-8 border-t border-white/20 text-center">
-          <p className="text-white/80 text-xs">
-            Deposits are insured by the FDIC up to the maximum of $250,000 per depositor, per insured bank, for each account ownership category. Your accounts are secure and protected.
-          </p>
         </div>
       </div>
     </footer>

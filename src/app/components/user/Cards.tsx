@@ -363,7 +363,7 @@ export default function Cards() {
                     <div>
                       <div className="flex items-start justify-between mb-8">
                         <div>
-                          <span className="text-white text-sm font-medium block mb-1">Chime Card</span>
+                          <span className="text-white text-sm font-medium block mb-1">Chimahub Card</span>
                           <span className="text-white/80 text-xs uppercase tracking-wider">{cardMeta.cardType}</span>
                         </div>
                         <div className="text-right">
@@ -500,3 +500,4 @@ export default function Cards() {
     </div>
   );
 }
+

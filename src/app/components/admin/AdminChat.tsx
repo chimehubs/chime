@@ -4,7 +4,6 @@ import { ArrowLeft, User, Send, Paperclip, Search, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
-import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type ChatMessage, type ChatThread, type Profile } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 
@@ -21,7 +20,6 @@ type ThreadRow = {
 };
 
 export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
-  const { user: adminUser } = useAuthContext();
   const [view, setView] = useState<'list' | 'chat'>('list');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [selectedThread, setSelectedThread] = useState<ThreadRow | null>(null);
@@ -130,7 +128,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     if (!input.trim() || !selectedThread) return;
     await supabaseDbService.sendChatMessage({
       thread_id: selectedThread.thread.id,
-      user_id: adminUser?.id || selectedThread.thread.user_id,
+      user_id: selectedThread.thread.user_id,
       sender_type: 'admin',
       message: input.trim(),
       attachment_url: null,
@@ -149,7 +147,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
       if (url) {
         await supabaseDbService.sendChatMessage({
           thread_id: selectedThread.thread.id,
-          user_id: adminUser?.id || selectedThread.thread.user_id,
+          user_id: selectedThread.thread.user_id,
           sender_type: 'admin',
           message: file.name,
           attachment_url: url,

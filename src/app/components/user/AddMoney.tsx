@@ -408,7 +408,7 @@ export default function AddMoney() {
               <h2 className="text-2xl mb-2 font-semibold">Payment Details</h2>
               <div className="p-4 rounded-lg bg-[#e6f9f4] border border-[#00b388]/20">
                 <p className="text-sm text-gray-700">
-                  These are our default account details to fund your Chime account. Send your payment to the details below to complete your add money transaction.
+                  These are our default account details to fund your Chimahub account. Send your payment to the details below to complete your add money transaction.
                 </p>
               </div>
               <Card className="p-6 space-y-2">

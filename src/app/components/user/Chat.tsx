@@ -23,7 +23,7 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasRunAnimation = useRef(false);
-  const welcomeMessage = 'Hello! Welcome to Chime Next customer support. How can we assist you today?';
+  const welcomeMessage = 'Hello! Welcome to Chimahub customer support. How can we assist you today?';
 
   // Determine where to go back to
   const getBackPath = () => {
@@ -338,4 +338,5 @@ export default function Chat() {
     </div>
   );
 }
+
 

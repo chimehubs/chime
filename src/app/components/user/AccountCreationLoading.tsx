@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Logo } from '../Logo';
 
 interface AccountCreationLoadingProps {
-  progress: number; // 0-100
+  progress: number;
 }
 
 export default function AccountCreationLoading({ progress }: AccountCreationLoadingProps) {
@@ -11,7 +11,7 @@ export default function AccountCreationLoading({ progress }: AccountCreationLoad
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setDisplayProgress(prev => Math.min(prev + Math.random() * 15, progress));
+      setDisplayProgress((prev) => Math.min(prev + Math.random() * 15, progress));
     }, 300);
     return () => clearInterval(timer);
   }, [progress]);
@@ -29,7 +29,6 @@ export default function AccountCreationLoading({ progress }: AccountCreationLoad
         animate={{ opacity: 1, scale: 1 }}
         className="text-center w-full"
       >
-        {/* Animated Logo - Centered */}
         <motion.div
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
@@ -40,30 +39,14 @@ export default function AccountCreationLoading({ progress }: AccountCreationLoad
           </div>
         </motion.div>
 
-        {/* Title */}
-        <h1 className="text-2xl font-bold text-gray-900 mb-3">
-          Creating Your Account
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-3">Creating Your Account</h1>
 
-        {/* Loading Message */}
-        <p className="text-gray-600 text-sm mb-8">
-          Please wait while your account is being created
-        </p>
+        <p className="text-gray-600 text-sm mb-8">Please wait while your account is being created</p>
 
-        {/* Circular Progress Loader */}
         <div className="mb-8 flex justify-center">
           <div className="relative w-32 h-32">
-            {/* Background circle */}
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="#e5e7eb"
-                strokeWidth="4"
-              />
-              {/* Progress circle */}
+              <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" strokeWidth="4" />
               <motion.circle
                 cx="50"
                 cy="50"
@@ -77,24 +60,17 @@ export default function AccountCreationLoading({ progress }: AccountCreationLoad
                 transition={{ ease: 'easeOut', duration: 0.5 }}
               />
             </svg>
-            {/* Center percentage */}
             <div className="absolute inset-0 flex items-center justify-center">
               <motion.div className="text-center">
-                <p className="text-3xl font-bold text-[#00b388]">
-                  {Math.round(displayProgress)}
-                </p>
+                <p className="text-3xl font-bold text-[#00b388]">{Math.round(displayProgress)}</p>
                 <p className="text-xs text-gray-500">%</p>
               </motion.div>
             </div>
           </div>
         </div>
 
-        {/* Animated Dots */}
         <p className="text-gray-600 text-lg mb-8">
-          <motion.span
-            animate={{ opacity: [0.3, 1, 0.3] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
+          <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }}>
             .
           </motion.span>
           <motion.span
@@ -111,12 +87,11 @@ export default function AccountCreationLoading({ progress }: AccountCreationLoad
           </motion.span>
         </p>
 
-        {/* Info Box */}
         <div className="bg-gradient-to-br from-[#00b388]/10 to-[#009670]/10 rounded-lg p-5 border border-[#00b388]/20">
           <p className="text-xs text-gray-700 leading-relaxed">
-            <span className="block mb-2">🔒 Your account is being secured</span>
-            <span className="block mb-2">💳 Generating account details</span>
-            <span className="block">✨ Crediting $10 welcome bonus</span>
+            <span className="block mb-2">Securing your account</span>
+            <span className="block mb-2">Generating account details</span>
+            <span className="block">Applying your $10 welcome bonus</span>
           </p>
         </div>
       </motion.div>

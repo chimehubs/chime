@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { signInWithSupabase } from '../../../services/supabaseAuthService';
+import { Logo } from '../Logo';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,7 +24,8 @@ export default function Login() {
       if (resp.error) throw resp.error;
       navigate('/dashboard');
     } catch (err) {
-      setError('Invalid email or password. Please try again.');
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -39,16 +41,10 @@ export default function Login() {
         className="p-6 md:p-8 flex items-center justify-between"
       >
         <div className="flex items-center gap-2">
-          <img
-            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXoL24HHFZY9sDPlej_aDDojZL8felyKfctw&s"
-            alt="Chime Logo"
-            className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 object-contain"
-          />
-          <img
-            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS7Cw9mOE-9j4eqntzmCEZLobhu9blcCexiqQ&s"
-            alt="Chime Next"
-            className="h-8 object-contain"
-          />
+          <div className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
+            <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
+          </div>
+          <span className="text-xl font-semibold text-charcoal-900">Chimahub</span>
         </div>
         <motion.button
           whileHover={{ x: -2 }}
@@ -98,6 +94,7 @@ export default function Login() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="email"
+                    autoComplete="username"
                     type="email"
                     placeholder="Enter your email address"
                     value={email}
@@ -114,6 +111,7 @@ export default function Login() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="password"
+                    autoComplete="current-password"
                     type="password"
                     placeholder="Enter your password"
                     value={password}
@@ -155,3 +153,9 @@ export default function Login() {
     </div>
   );
 }
+
+
+
+
+
+

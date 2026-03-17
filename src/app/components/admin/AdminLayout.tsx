@@ -1,17 +1,6 @@
-import { useNavigate, useLocation } from 'react-router';
+﻿import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
-import {
-  LayoutDashboard,
-  Users,
-  Receipt,
-  ArrowDownRight,
-  ArrowUpRight,
-  MessageSquare,
-  Settings,
-  LogOut,
-  UserCheck,
-  Menu
-} from 'lucide-react';
+import { LayoutDashboard, Users, Receipt, ArrowDownRight, Settings, LogOut, UserCheck, Menu } from 'lucide-react';
 import { Logo } from '../Logo';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
@@ -44,7 +33,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
     { id: 'users', icon: Users, label: 'User Management', path: '/admin/users' },
     { id: 'transactions', icon: Receipt, label: 'Transactions', path: '/admin/transactions' },
     { id: 'deposits', icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits' },
-    { id: 'settings', icon: Settings, label: 'Settings', path: '/admin/settings' }
+    { id: 'settings', icon: Settings, label: 'Settings', path: '/admin/settings' },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -56,7 +45,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
           <div className="w-8 h-8 rounded-lg bg-[#00b388] flex items-center justify-center">
             <Logo innerClassName="text-white" className="w-5 h-5" />
           </div>
-          <h1 className="text-lg tracking-tight font-semibold">Chime Next</h1>
+          <h1 className="text-lg tracking-tight font-semibold">Chimahub</h1>
         </div>
         <p className="text-xs text-muted-foreground ml-10">Admin Command Center</p>
       </div>
@@ -66,7 +55,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => onNavigate ? onNavigate(item.path) : navigate(item.path)}
+              onClick={() => (onNavigate ? onNavigate(item.path) : navigate(item.path))}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                 isActive(item.path)
                   ? 'bg-[#00b388] text-white shadow-lg shadow-[#00b388]/20'
@@ -87,7 +76,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm truncate font-semibold">Admin User</p>
-            <p className="text-xs text-muted-foreground truncate">admin@chime.com</p>
+            <p className="text-xs text-muted-foreground truncate">support@chimafinance.com</p>
           </div>
         </div>
         <button
@@ -103,66 +92,49 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
 
   return (
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
-      {/* Desktop Sidebar */}
-      <motion.div
+      <motion.aside
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="hidden lg:flex lg:flex-col w-72 bg-card border-r border-border fixed lg:relative h-screen"
+        className="hidden lg:block lg:w-72 border-r border-border bg-card"
       >
         <SidebarContent />
-      </motion.div>
+      </motion.aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col w-full lg:w-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="sticky top-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border px-4 md:px-6 lg:px-8 py-4 md:py-6"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Mobile Menu Button */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <button 
-                    title="Toggle navigation menu"
-                    className="lg:hidden p-2 hover:bg-accent rounded-lg transition-colors"
+                  <button
+                    className="lg:hidden w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-accent transition-colors"
+                    title="Open admin menu"
                   >
-                    <Menu className="w-6 h-6" />
+                    <Menu className="w-5 h-5" />
                   </button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-full sm:w-72 p-0">
+                <SheetContent side="left" className="p-0 w-72">
                   <SidebarContent onNavigate={handleNavigate} />
                 </SheetContent>
               </Sheet>
 
-              <div>
-                <h2 className="text-xl md:text-2xl font-semibold">{title}</h2>
-                {subtitle && <p className="text-xs md:text-sm text-muted-foreground">{subtitle}</p>}
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold truncate">{title}</h2>
+                {subtitle && <p className="text-sm text-muted-foreground truncate">{subtitle}</p>}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-semibold text-green-700">Live</span>
-              </div>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
           </div>
-        </motion.div>
+        </header>
 
-        {/* Page Content */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-8"
-        >
-          {children}
-        </motion.div>
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 # Production Deployment Checklist
 
-## Deployment Target (Vercel)
-- Project ID: `prj_gRJU3Rwni95hywxzeL47ZuFTm2y2`
-- Site URL: set your Vercel domain and mirror it in `VITE_SITE_URL` for Google Auth redirects.
+## Deployment Target (Netlify)
+- Site URL: set your Netlify domain and mirror it in `VITE_SITE_URL`.
 
 ## Phase 1: Code Cleanup ✅ COMPLETED
 - [x] Remove all mock user data from AdminUsers
@@ -125,8 +124,7 @@
 ./.env.production
 VITE_API_URL=https://api.chime.com
 VITE_APP_NAME=chime
-VITE_SITE_URL=https://chime-14c5kfm4w-chimaonlinebank-7988s-projects.vercel.app
-VITE_VERCEL_PROJECT_ID=prj_gRJU3Rwni95hywxzeL47ZuFTm2y2
+VITE_SITE_URL=https://your-site-name.netlify.app
 ```
 
 ### 2. API Client Configuration

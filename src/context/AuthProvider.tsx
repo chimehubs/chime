@@ -32,15 +32,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Fetch full user profile from Supabase database
           let userProfile = await supabaseDbService.getProfile(session.user.id);
-
           if (!userProfile) {
-            userProfile = await supabaseDbService.upsertProfile({
+            userProfile = {
               id: session.user.id,
               email: session.user.email || '',
               name: session.user.user_metadata?.name || 'User',
               status: 'UNREGISTERED',
               role: 'user',
-            });
+            } as any;
           }
 
           const mappedUser: UserProfile = {
@@ -129,3 +128,5 @@ export const useAuthContext = () => {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 };
+
+

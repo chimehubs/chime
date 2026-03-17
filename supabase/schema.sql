@@ -1,148 +1,227 @@
--- Enable extensions
-create extension if not exists "uuid-ossp";
+﻿-- Chimahub Supabase Full Setup
+-- Run this entire file in the Supabase SQL editor for a fresh project.
 
--- Profiles
-create table if not exists profiles (
+create extension if not exists "pgcrypto";
+
+-- =========================
+-- Core Tables
+-- =========================
+
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   name text,
   first_name text,
   last_name text,
   phone text,
-  role text default 'user',
-  status text default 'UNREGISTERED',
+  role text not null default 'user' check (role in ('user', 'admin')),
+  status text not null default 'UNREGISTERED' check (status in ('UNREGISTERED', 'ACTIVE', 'SUSPENDED')),
   nationality text,
   gender text,
   date_of_birth date,
   house_address text,
   occupation text,
   salary_range text,
-  primary_account_type text,
-  currency text default 'USD',
+  primary_account_type text check (primary_account_type in ('CHECKING', 'SAVINGS')),
+  currency text not null default 'USD',
   avatar_url text,
-  preferences jsonb default '{}'::jsonb,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  preferences jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Accounts
-create table if not exists accounts (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.accounts (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   account_number text not null unique,
   routing_number text not null,
-  account_type text not null,
-  currency text not null,
-  status text default 'ACTIVE',
-  created_at timestamptz default now()
+  account_type text not null check (account_type in ('CHECKING', 'SAVINGS')),
+  currency text not null default 'USD',
+  status text not null default 'ACTIVE' check (status in ('ACTIVE', 'CLOSED', 'SUSPENDED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Virtual cards
-create table if not exists virtual_cards (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.virtual_cards (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
   card_number text not null,
   expiry_date text not null,
   cvv text not null,
-  status text default 'ACTIVE',
-  daily_limit numeric default 5000,
-  monthly_limit numeric default 50000,
-  created_at timestamptz default now()
+  status text not null default 'ACTIVE' check (status in ('ACTIVE', 'FROZEN', 'CANCELLED')),
+  daily_limit numeric(12, 2) not null default 5000,
+  monthly_limit numeric(12, 2) not null default 50000,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Transactions
-create table if not exists transactions (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.transactions (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  account_id uuid not null references accounts(id) on delete cascade,
-  type text not null,
-  amount numeric not null,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  type text not null check (type in ('credit', 'debit')),
+  amount numeric(12, 2) not null check (amount >= 0),
   description text not null,
   currency text not null,
-  status text default 'completed',
-  created_at timestamptz default now()
+  status text not null default 'completed' check (status in ('completed', 'pending', 'failed')),
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Activities
-create table if not exists activities (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.activities (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   type text not null,
   description text not null,
-  amount numeric,
-  created_at timestamptz default now()
+  amount numeric(12, 2),
+  created_at timestamptz not null default now()
 );
 
--- Notifications
-create table if not exists notifications (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   title text,
   message text not null,
-  type text,
+  type text default 'info',
   path text,
-  read boolean default false,
-  created_at timestamptz default now()
+  read boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
--- Drafts (add money / send money)
-create table if not exists drafts (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.drafts (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  type text not null, -- 'add_money' | 'send_money'
-  payload jsonb not null,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
+  type text not null check (type in ('add_money', 'send_money')),
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   unique (user_id, type)
 );
 
--- Chat threads (1:1 user-support)
-create table if not exists chat_threads (
-  id uuid primary key default uuid_generate_v4(),
+create table if not exists public.chat_threads (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  status text default 'open',
-  created_at timestamptz default now()
+  status text not null default 'open' check (status in ('open', 'closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id),
+  unique (id, user_id)
 );
 
--- Chat messages
-create table if not exists chat_messages (
-  id uuid primary key default uuid_generate_v4(),
-  thread_id uuid not null references chat_threads(id) on delete cascade,
+create table if not exists public.chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null,
   user_id uuid not null references auth.users(id) on delete cascade,
-  sender_type text not null, -- 'user' | 'admin'
+  sender_type text not null check (sender_type in ('user', 'admin')),
   message text not null,
   attachment_url text,
-  read boolean default false,
-  created_at timestamptz default now()
+  read boolean not null default false,
+  created_at timestamptz not null default now(),
+  constraint chat_messages_thread_user_fk
+    foreign key (thread_id, user_id)
+    references public.chat_threads(id, user_id)
+    on delete cascade
 );
 
--- Trigger to update updated_at on profiles
+-- =========================
+-- Indexes
+-- =========================
+
+create index if not exists idx_accounts_user_id on public.accounts(user_id);
+create index if not exists idx_virtual_cards_user_id on public.virtual_cards(user_id);
+create index if not exists idx_virtual_cards_account_id on public.virtual_cards(account_id);
+create index if not exists idx_transactions_user_id on public.transactions(user_id);
+create index if not exists idx_transactions_account_id on public.transactions(account_id);
+create index if not exists idx_transactions_created_at on public.transactions(created_at desc);
+create index if not exists idx_activities_user_id on public.activities(user_id);
+create index if not exists idx_notifications_user_id on public.notifications(user_id);
+create index if not exists idx_notifications_read on public.notifications(user_id, read);
+create index if not exists idx_chat_threads_user_id on public.chat_threads(user_id);
+create index if not exists idx_chat_messages_thread_id on public.chat_messages(thread_id);
+create index if not exists idx_chat_messages_user_id on public.chat_messages(user_id);
+create index if not exists idx_chat_messages_created_at on public.chat_messages(created_at desc);
+
+-- =========================
+-- Utility Functions + Triggers
+-- =========================
+
 create or replace function public.set_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
 $$;
 
-drop trigger if exists set_profiles_updated_at on profiles;
-create trigger set_profiles_updated_at
-before update on profiles
+drop trigger if exists trg_profiles_updated_at on public.profiles;
+create trigger trg_profiles_updated_at
+before update on public.profiles
 for each row execute procedure public.set_updated_at();
 
-drop trigger if exists set_drafts_updated_at on drafts;
-create trigger set_drafts_updated_at
-before update on drafts
+drop trigger if exists trg_accounts_updated_at on public.accounts;
+create trigger trg_accounts_updated_at
+before update on public.accounts
 for each row execute procedure public.set_updated_at();
 
--- Auto-create profile on auth signup
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer as $$
+drop trigger if exists trg_virtual_cards_updated_at on public.virtual_cards;
+create trigger trg_virtual_cards_updated_at
+before update on public.virtual_cards
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists trg_transactions_updated_at on public.transactions;
+create trigger trg_transactions_updated_at
+before update on public.transactions
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists trg_drafts_updated_at on public.drafts;
+create trigger trg_drafts_updated_at
+before update on public.drafts
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists trg_chat_threads_updated_at on public.chat_threads;
+create trigger trg_chat_threads_updated_at
+before update on public.chat_threads
+for each row execute procedure public.set_updated_at();
+
+create or replace function public.is_admin()
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  insert into public.profiles (id, email, name, status, role)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'name', 'User'), 'UNREGISTERED', 'user')
+  return exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  );
+end;
+$$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to anon, authenticated;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, name, role, status)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1), 'User'),
+    'user',
+    'UNREGISTERED'
+  )
   on conflict (id) do nothing;
+
   return new;
 end;
 $$;
@@ -152,7 +231,10 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
--- Account creation RPC (atomic)
+-- =========================
+-- Account Creation RPC
+-- =========================
+
 create or replace function public.create_account(
   first_name text,
   last_name text,
@@ -166,13 +248,19 @@ create or replace function public.create_account(
   account_type text,
   currency text,
   avatar_url text default null
-) returns json language plpgsql security definer as $$
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
   _user_id uuid := auth.uid();
-  _account accounts;
-  _card virtual_cards;
+  _account public.accounts;
+  _card public.virtual_cards;
   _routing text;
   _account_number text;
+  _card_number text;
   _expiry text;
   _cvv text;
 begin
@@ -180,207 +268,509 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  -- Generate account numbers
-  _routing := lpad((floor(random() * 1000000000))::text, 9, '0');
-  _account_number := lpad((floor(random() * 100000000000))::text, 11, '0');
+  if exists (
+    select 1
+    from public.accounts
+    where user_id = _user_id and status <> 'CLOSED'
+  ) then
+    raise exception 'Account already exists for this user';
+  end if;
 
-  -- Create account
-  insert into accounts (user_id, account_number, routing_number, account_type, currency)
+  loop
+    _account_number := lpad((floor(random() * 100000000000))::text, 11, '0');
+    exit when not exists (
+      select 1 from public.accounts where account_number = _account_number
+    );
+  end loop;
+
+  _routing := lpad((floor(random() * 1000000000))::text, 9, '0');
+
+  insert into public.accounts (user_id, account_number, routing_number, account_type, currency)
   values (_user_id, _account_number, _routing, account_type, currency)
   returning * into _account;
 
-  -- Create virtual card
+  loop
+    _card_number := lpad((floor(random() * 10000000000000000))::text, 16, '0');
+    exit when not exists (
+      select 1 from public.virtual_cards where card_number = _card_number
+    );
+  end loop;
+
   _expiry := to_char(now() + interval '5 years', 'MM/YY');
   _cvv := lpad((floor(random() * 1000))::text, 3, '0');
 
-  insert into virtual_cards (user_id, account_id, card_number, expiry_date, cvv)
-  values (_user_id, _account.id, lpad((floor(random() * 10000000000000000))::text, 16, '0'), _expiry, _cvv)
+  insert into public.virtual_cards (user_id, account_id, card_number, expiry_date, cvv)
+  values (_user_id, _account.id, _card_number, _expiry, _cvv)
   returning * into _card;
 
-  -- Update profile
-  update profiles
-  set first_name = create_account.first_name,
-      last_name = create_account.last_name,
-      name = trim(concat(create_account.first_name, ' ', create_account.middle_name, ' ', create_account.last_name)),
-      gender = create_account.gender,
-      date_of_birth = create_account.date_of_birth::date,
-      nationality = create_account.nationality,
-      house_address = create_account.house_address,
-      occupation = create_account.occupation,
-      salary_range = create_account.salary_range,
-      primary_account_type = create_account.account_type,
-      currency = create_account.currency,
-      avatar_url = create_account.avatar_url,
-      status = 'ACTIVE'
+  update public.profiles
+  set
+    first_name = create_account.first_name,
+    last_name = create_account.last_name,
+    name = trim(concat(create_account.first_name, ' ', create_account.middle_name, ' ', create_account.last_name)),
+    gender = create_account.gender,
+    date_of_birth = create_account.date_of_birth::date,
+    nationality = create_account.nationality,
+    house_address = create_account.house_address,
+    occupation = create_account.occupation,
+    salary_range = create_account.salary_range,
+    primary_account_type = create_account.account_type,
+    currency = create_account.currency,
+    avatar_url = create_account.avatar_url,
+    status = 'ACTIVE'
   where id = _user_id;
 
-  -- Welcome bonus transaction
-  insert into transactions (user_id, account_id, type, amount, description, currency, status)
-  values (_user_id, _account.id, 'credit', 10, 'Onboarding Welcome Bonus', currency, 'completed');
+  insert into public.transactions (user_id, account_id, type, amount, description, currency, status, metadata)
+  values (
+    _user_id,
+    _account.id,
+    'credit',
+    10,
+    'Onboarding Welcome Bonus',
+    currency,
+    'completed',
+    '{"source":"onboarding"}'::jsonb
+  );
 
-  -- Activity log
-  insert into activities (user_id, type, description, amount)
+  insert into public.activities (user_id, type, description, amount)
   values (_user_id, 'credit', 'Onboarding Welcome Bonus', 10);
 
-  -- Notification
-  insert into notifications (user_id, title, message, type, read, path)
-  values (_user_id, 'Welcome to Chime!', 'Your account has been created and $10 bonus credited.', 'success', false, '/activity');
+  insert into public.notifications (user_id, title, message, type, read, path)
+  values (
+    _user_id,
+    'Welcome to Chimahub',
+    'Your account is active and your $10 welcome bonus is available.',
+    'success',
+    false,
+    '/activity'
+  );
 
-  return json_build_object('account', _account, 'card', _card);
+  return jsonb_build_object('account', to_jsonb(_account), 'card', to_jsonb(_card));
 end;
 $$;
 
+grant execute on function public.create_account(
+  text, text, text, text, text, text, text, text, text, text, text, text
+) to authenticated;
+
+-- =========================
 -- RLS
-alter table profiles enable row level security;
-alter table accounts enable row level security;
-alter table virtual_cards enable row level security;
-alter table transactions enable row level security;
-alter table activities enable row level security;
-alter table notifications enable row level security;
-alter table drafts enable row level security;
-alter table chat_threads enable row level security;
-alter table chat_messages enable row level security;
+-- =========================
 
--- Helper policy for admin (role stored in profiles)
-create or replace function public.is_admin()
-returns boolean language sql stable as $$
-  select exists (
-    select 1 from profiles p
-    where p.id = auth.uid() and p.role = 'admin'
-  );
-$$;
+alter table public.profiles enable row level security;
+alter table public.accounts enable row level security;
+alter table public.virtual_cards enable row level security;
+alter table public.transactions enable row level security;
+alter table public.activities enable row level security;
+alter table public.notifications enable row level security;
+alter table public.drafts enable row level security;
+alter table public.chat_threads enable row level security;
+alter table public.chat_messages enable row level security;
 
--- Profiles policies
-create policy "Profiles: read own"
-on profiles for select
+-- Profiles
+
+drop policy if exists "Profiles: read own" on public.profiles;
+drop policy if exists "Profiles: update own" on public.profiles;
+drop policy if exists profiles_select_own_or_admin on public.profiles;
+drop policy if exists profiles_insert_own_or_admin on public.profiles;
+drop policy if exists profiles_update_own_or_admin on public.profiles;
+
+create policy profiles_select_own_or_admin
+on public.profiles for select
 using (auth.uid() = id or public.is_admin());
 
-create policy "Profiles: update own"
-on profiles for update
-using (auth.uid() = id or public.is_admin());
+create policy profiles_insert_own_or_admin
+on public.profiles for insert
+with check (auth.uid() = id or public.is_admin());
 
--- Accounts policies
-create policy "Accounts: read own"
-on accounts for select
+create policy profiles_update_own_or_admin
+on public.profiles for update
+using (auth.uid() = id or public.is_admin())
+with check (auth.uid() = id or public.is_admin());
+
+-- Accounts
+
+drop policy if exists "Accounts: read own" on public.accounts;
+drop policy if exists "Accounts: insert own" on public.accounts;
+drop policy if exists accounts_select_own_or_admin on public.accounts;
+drop policy if exists accounts_insert_own_or_admin on public.accounts;
+drop policy if exists accounts_update_admin on public.accounts;
+
+create policy accounts_select_own_or_admin
+on public.accounts for select
 using (auth.uid() = user_id or public.is_admin());
 
-create policy "Accounts: insert own"
-on accounts for insert
+create policy accounts_insert_own_or_admin
+on public.accounts for insert
 with check (auth.uid() = user_id or public.is_admin());
 
--- Virtual cards policies
-create policy "Cards: read own"
-on virtual_cards for select
+create policy accounts_update_admin
+on public.accounts for update
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Virtual Cards
+
+drop policy if exists "Cards: read own" on public.virtual_cards;
+drop policy if exists "Cards: update own" on public.virtual_cards;
+drop policy if exists virtual_cards_select_own_or_admin on public.virtual_cards;
+drop policy if exists virtual_cards_insert_own_or_admin on public.virtual_cards;
+drop policy if exists virtual_cards_update_own_or_admin on public.virtual_cards;
+
+create policy virtual_cards_select_own_or_admin
+on public.virtual_cards for select
 using (auth.uid() = user_id or public.is_admin());
 
-create policy "Cards: update own"
-on virtual_cards for update
-using (auth.uid() = user_id or public.is_admin());
-
--- Transactions policies
-create policy "Transactions: read own"
-on transactions for select
-using (auth.uid() = user_id or public.is_admin());
-
-create policy "Transactions: insert own"
-on transactions for insert
+create policy virtual_cards_insert_own_or_admin
+on public.virtual_cards for insert
 with check (auth.uid() = user_id or public.is_admin());
 
--- Activities policies
-create policy "Activities: read own"
-on activities for select
-using (auth.uid() = user_id or public.is_admin());
-
-create policy "Activities: insert own"
-on activities for insert
+create policy virtual_cards_update_own_or_admin
+on public.virtual_cards for update
+using (auth.uid() = user_id or public.is_admin())
 with check (auth.uid() = user_id or public.is_admin());
 
--- Notifications policies
-create policy "Notifications: read own"
-on notifications for select
+-- Transactions
+
+drop policy if exists "Transactions: read own" on public.transactions;
+drop policy if exists "Transactions: insert own" on public.transactions;
+drop policy if exists transactions_select_own_or_admin on public.transactions;
+drop policy if exists transactions_insert_own_or_admin on public.transactions;
+drop policy if exists transactions_update_own_or_admin on public.transactions;
+
+create policy transactions_select_own_or_admin
+on public.transactions for select
 using (auth.uid() = user_id or public.is_admin());
 
-create policy "Notifications: update own"
-on notifications for update
-using (auth.uid() = user_id or public.is_admin());
-
-create policy "Notifications: insert own"
-on notifications for insert
+create policy transactions_insert_own_or_admin
+on public.transactions for insert
 with check (auth.uid() = user_id or public.is_admin());
 
--- Drafts policies
-create policy "Drafts: read own"
-on drafts for select
-using (auth.uid() = user_id or public.is_admin());
-
-create policy "Drafts: upsert own"
-on drafts for insert
+create policy transactions_update_own_or_admin
+on public.transactions for update
+using (auth.uid() = user_id or public.is_admin())
 with check (auth.uid() = user_id or public.is_admin());
 
-create policy "Drafts: update own"
-on drafts for update
+-- Activities
+
+drop policy if exists "Activities: read own" on public.activities;
+drop policy if exists "Activities: insert own" on public.activities;
+drop policy if exists activities_select_own_or_admin on public.activities;
+drop policy if exists activities_insert_own_or_admin on public.activities;
+
+create policy activities_select_own_or_admin
+on public.activities for select
 using (auth.uid() = user_id or public.is_admin());
 
-create policy "Drafts: delete own"
-on drafts for delete
-using (auth.uid() = user_id or public.is_admin());
-
--- Chat policies
-create policy "Threads: read own"
-on chat_threads for select
-using (auth.uid() = user_id or public.is_admin());
-
-create policy "Threads: insert own"
-on chat_threads for insert
+create policy activities_insert_own_or_admin
+on public.activities for insert
 with check (auth.uid() = user_id or public.is_admin());
 
-create policy "Messages: read own"
-on chat_messages for select
-using (
-  auth.uid() = user_id
-  or public.is_admin()
+-- Notifications
+
+drop policy if exists "Notifications: read own" on public.notifications;
+drop policy if exists "Notifications: update own" on public.notifications;
+drop policy if exists "Notifications: insert own" on public.notifications;
+drop policy if exists notifications_select_own_or_admin on public.notifications;
+drop policy if exists notifications_insert_own_or_admin on public.notifications;
+drop policy if exists notifications_update_own_or_admin on public.notifications;
+drop policy if exists notifications_delete_own_or_admin on public.notifications;
+
+create policy notifications_select_own_or_admin
+on public.notifications for select
+using (auth.uid() = user_id or public.is_admin());
+
+create policy notifications_insert_own_or_admin
+on public.notifications for insert
+with check (auth.uid() = user_id or public.is_admin());
+
+create policy notifications_update_own_or_admin
+on public.notifications for update
+using (auth.uid() = user_id or public.is_admin())
+with check (auth.uid() = user_id or public.is_admin());
+
+create policy notifications_delete_own_or_admin
+on public.notifications for delete
+using (auth.uid() = user_id or public.is_admin());
+
+-- Drafts
+
+drop policy if exists "Drafts: read own" on public.drafts;
+drop policy if exists "Drafts: upsert own" on public.drafts;
+drop policy if exists "Drafts: update own" on public.drafts;
+drop policy if exists "Drafts: delete own" on public.drafts;
+drop policy if exists drafts_select_own_or_admin on public.drafts;
+drop policy if exists drafts_insert_own_or_admin on public.drafts;
+drop policy if exists drafts_update_own_or_admin on public.drafts;
+drop policy if exists drafts_delete_own_or_admin on public.drafts;
+
+create policy drafts_select_own_or_admin
+on public.drafts for select
+using (auth.uid() = user_id or public.is_admin());
+
+create policy drafts_insert_own_or_admin
+on public.drafts for insert
+with check (auth.uid() = user_id or public.is_admin());
+
+create policy drafts_update_own_or_admin
+on public.drafts for update
+using (auth.uid() = user_id or public.is_admin())
+with check (auth.uid() = user_id or public.is_admin());
+
+create policy drafts_delete_own_or_admin
+on public.drafts for delete
+using (auth.uid() = user_id or public.is_admin());
+
+-- Chat Threads
+
+drop policy if exists "Threads: read own" on public.chat_threads;
+drop policy if exists "Threads: insert own" on public.chat_threads;
+drop policy if exists chat_threads_select_own_or_admin on public.chat_threads;
+drop policy if exists chat_threads_insert_own_or_admin on public.chat_threads;
+drop policy if exists chat_threads_update_own_or_admin on public.chat_threads;
+
+create policy chat_threads_select_own_or_admin
+on public.chat_threads for select
+using (auth.uid() = user_id or public.is_admin());
+
+create policy chat_threads_insert_own_or_admin
+on public.chat_threads for insert
+with check (auth.uid() = user_id or public.is_admin());
+
+create policy chat_threads_update_own_or_admin
+on public.chat_threads for update
+using (auth.uid() = user_id or public.is_admin())
+with check (auth.uid() = user_id or public.is_admin());
+
+-- Chat Messages
+
+drop policy if exists "Messages: read own" on public.chat_messages;
+drop policy if exists "Messages: insert own" on public.chat_messages;
+drop policy if exists "Messages: update own" on public.chat_messages;
+drop policy if exists chat_messages_select_own_or_admin on public.chat_messages;
+drop policy if exists chat_messages_insert_user_or_admin on public.chat_messages;
+drop policy if exists chat_messages_update_own_or_admin on public.chat_messages;
+
+create policy chat_messages_select_own_or_admin
+on public.chat_messages for select
+using (auth.uid() = user_id or public.is_admin());
+
+create policy chat_messages_insert_user_or_admin
+on public.chat_messages for insert
+with check (
+  (
+    sender_type = 'user'
+    and auth.uid() = user_id
+  )
+  or (
+    sender_type = 'admin'
+    and public.is_admin()
+  )
 );
 
-create policy "Messages: insert own"
-on chat_messages for insert
+create policy chat_messages_update_own_or_admin
+on public.chat_messages for update
+using (auth.uid() = user_id or public.is_admin())
 with check (auth.uid() = user_id or public.is_admin());
 
-create policy "Messages: update own"
-on chat_messages for update
-using (auth.uid() = user_id or public.is_admin());
--- Add metadata to transactions
-alter table transactions add column if not exists metadata jsonb default '{}'::jsonb;
+-- =========================
+-- Storage Buckets + Policies
+-- =========================
 
--- Storage bucket for payment evidence
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do update set public = excluded.public;
+
+insert into storage.buckets (id, name, public)
+values ('chat-attachments', 'chat-attachments', true)
+on conflict (id) do update set public = excluded.public;
+
 insert into storage.buckets (id, name, public)
 values ('payment-evidence', 'payment-evidence', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = excluded.public;
 
--- Storage policies for payment evidence
-create policy "Evidence: read own"
+drop policy if exists "Evidence: read own" on storage.objects;
+drop policy if exists "Evidence: insert own" on storage.objects;
+drop policy if exists "Evidence: update own" on storage.objects;
+drop policy if exists "Evidence: delete own" on storage.objects;
+
+drop policy if exists avatars_read_own_or_admin on storage.objects;
+drop policy if exists avatars_insert_own_or_admin on storage.objects;
+drop policy if exists avatars_update_own_or_admin on storage.objects;
+drop policy if exists avatars_delete_own_or_admin on storage.objects;
+drop policy if exists chat_attachments_read_own_or_admin on storage.objects;
+drop policy if exists chat_attachments_insert_own_or_admin on storage.objects;
+drop policy if exists chat_attachments_update_own_or_admin on storage.objects;
+drop policy if exists chat_attachments_delete_own_or_admin on storage.objects;
+drop policy if exists payment_evidence_read_own_or_admin on storage.objects;
+drop policy if exists payment_evidence_insert_own_or_admin on storage.objects;
+drop policy if exists payment_evidence_update_own_or_admin on storage.objects;
+drop policy if exists payment_evidence_delete_own_or_admin on storage.objects;
+
+create policy avatars_read_own_or_admin
+on storage.objects for select
+using (
+  bucket_id = 'avatars'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy avatars_insert_own_or_admin
+on storage.objects for insert
+with check (
+  bucket_id = 'avatars'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy avatars_update_own_or_admin
+on storage.objects for update
+using (
+  bucket_id = 'avatars'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+)
+with check (
+  bucket_id = 'avatars'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy avatars_delete_own_or_admin
+on storage.objects for delete
+using (
+  bucket_id = 'avatars'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy chat_attachments_read_own_or_admin
+on storage.objects for select
+using (
+  bucket_id = 'chat-attachments'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy chat_attachments_insert_own_or_admin
+on storage.objects for insert
+with check (
+  bucket_id = 'chat-attachments'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy chat_attachments_update_own_or_admin
+on storage.objects for update
+using (
+  bucket_id = 'chat-attachments'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+)
+with check (
+  bucket_id = 'chat-attachments'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy chat_attachments_delete_own_or_admin
+on storage.objects for delete
+using (
+  bucket_id = 'chat-attachments'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+);
+
+create policy payment_evidence_read_own_or_admin
 on storage.objects for select
 using (
   bucket_id = 'payment-evidence'
-  and (auth.uid() = owner or public.is_admin())
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
 );
 
-create policy "Evidence: insert own"
+create policy payment_evidence_insert_own_or_admin
 on storage.objects for insert
 with check (
   bucket_id = 'payment-evidence'
-  and auth.uid() = owner
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
 );
 
-create policy "Evidence: update own"
+create policy payment_evidence_update_own_or_admin
 on storage.objects for update
 using (
   bucket_id = 'payment-evidence'
-  and (auth.uid() = owner or public.is_admin())
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
+)
+with check (
+  bucket_id = 'payment-evidence'
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
 );
 
-create policy "Evidence: delete own"
+create policy payment_evidence_delete_own_or_admin
 on storage.objects for delete
 using (
   bucket_id = 'payment-evidence'
-  and (auth.uid() = owner or public.is_admin())
+  and (
+    public.is_admin()
+    or (storage.foldername(name))[1] = auth.uid()::text
+  )
 );
+
+-- =========================
+-- Privileges
+-- =========================
+
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- Optional: include chat tables in realtime publication
+-- (safe to rerun)
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.chat_threads;
+  exception when duplicate_object then
+    null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.chat_messages;
+  exception when duplicate_object then
+    null;
+  end;
+end;
+$$;
+

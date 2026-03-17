@@ -98,7 +98,7 @@ export default function AccountCreationModal({ isOpen, onClose, onSuccess }: Acc
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
           >
-            <div className="w-full max-w-md max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="w-full max-w-md h-[min(92vh,780px)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
               {step === 'form' && (
                 <div className="flex-1 overflow-y-auto">
                   {error && (
@@ -113,12 +113,14 @@ export default function AccountCreationModal({ isOpen, onClose, onSuccess }: Acc
               )}
 
               {(step === 'loading' || step === 'success') && (
-                <AccountCreationFlipCard
-                  progress={progress}
-                  successData={successData}
-                  onContinue={handleContinue}
-                  onClose={step === 'success' ? handleContinue : undefined}
-                />
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <AccountCreationFlipCard
+                    progress={progress}
+                    successData={successData}
+                    onContinue={handleContinue}
+                    onClose={step === 'success' ? handleContinue : undefined}
+                  />
+                </div>
               )}
             </div>
           </motion.div>

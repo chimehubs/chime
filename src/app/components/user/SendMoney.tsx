@@ -338,7 +338,7 @@ export default function SendMoney() {
               )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">From Account</span>
-                <span className="text-sm font-semibold">Chime Checking</span>
+                <span className="text-sm font-semibold">Chimahub Checking</span>
               </div>
             </Card>
             <div className="mt-6 p-4 rounded-lg bg-[#fef3c7] border border-amber-200 text-xs text-amber-900">Please verify all recipient details carefully before confirming this transfer.</div>
@@ -394,5 +394,6 @@ export default function SendMoney() {
     </div>
   );
 }
+
 
 

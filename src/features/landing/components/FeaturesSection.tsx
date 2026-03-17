@@ -7,8 +7,10 @@ import {
   TrendingUp,
   Send,
   Lock,
+  Wallet,
+  ShieldCheck,
 } from 'lucide-react';
-import { fadeUpVariants, staggerContainer, hoverLiftVariants } from '../animations';
+import { fadeUpVariants, staggerContainer } from '../animations';
 import './FeaturesSection.css';
 
 interface Feature {
@@ -81,7 +83,6 @@ export const FeaturesSection: React.FC = () => {
           </p>
         </motion.div>
 
-        {/* Feature Image Showcase */}
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -93,13 +94,31 @@ export const FeaturesSection: React.FC = () => {
           <motion.div
             animate={{ y: [0, -8, 0] }}
             transition={{ duration: 3, repeat: Infinity }}
-            className="w-full"
+            className="w-full rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6 sm:p-8 shadow-xl"
           >
-            <img
-              src="https://miracuves.com/wp-content/uploads/2025/10/chime-digital-banking-app-interface.webp"
-              alt="Chime Digital Banking App Interface"
-              className="w-full h-auto object-contain"
-            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-2xl bg-white border border-emerald-100 p-5 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <p className="text-xs text-slate-500">Available Balance</p>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">$12,480.42</p>
+              </div>
+              <div className="rounded-2xl bg-white border border-emerald-100 p-5 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-4">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <p className="text-xs text-slate-500">Monthly Activity</p>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">+18.6%</p>
+              </div>
+              <div className="rounded-2xl bg-white border border-emerald-100 p-5 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mb-4">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <p className="text-xs text-slate-500">Security Status</p>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">Protected</p>
+              </div>
+            </div>
           </motion.div>
         </motion.div>
 
@@ -141,3 +160,4 @@ export const FeaturesSection: React.FC = () => {
     </section>
   );
 };
+
