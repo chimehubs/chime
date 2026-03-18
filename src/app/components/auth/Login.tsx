@@ -8,6 +8,7 @@ import { Label } from '../ui/label';
 import { signInWithSupabase } from '../../../services/supabaseAuthService';
 import { supabaseDbService } from '../../../services/supabaseDbService';
 import { Logo } from '../Logo';
+import AuthBackgroundCarousel from './AuthBackgroundCarousel';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -45,12 +46,7 @@ export default function Login() {
       className="min-h-screen relative overflow-hidden bg-[#050b0a]"
       style={{ fontFamily: "'Manrope', 'Inter', sans-serif" }}
     >
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,163,108,0.18)_0%,rgba(5,11,10,0.8)_55%,rgba(5,11,10,1)_100%)]" />
-        <div className="absolute -top-40 -right-32 h-96 w-96 rounded-full bg-[#00A36C]/20 blur-[120px]" />
-        <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#008080]/20 blur-[120px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.04),rgba(255,255,255,0))]" />
-      </div>
+      <AuthBackgroundCarousel />
 
       <div className="relative z-10 min-h-screen grid lg:grid-cols-[1.15fr_0.85fr]">
         <div className="hidden lg:flex flex-col justify-between p-12 text-white">

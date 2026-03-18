@@ -32,7 +32,7 @@ import Licenses from '../pages/Licenses';
 import HelpCenter from '../pages/HelpCenter';
 import SystemStatus from '../pages/SystemStatus';
 import Faqs from '../pages/Faqs';
-import { ProtectedRoute, AdminRoute } from '../routes/ProtectedRoute';
+import { ProtectedRoute } from '../routes/ProtectedRoute';
 
 export default function App() {
   return (
@@ -138,43 +138,23 @@ export default function App() {
         {/* Admin Routes */}
         <Route
           path="/admin"
-          element={
-            <AdminRoute>
-              <AdminDashboard />
-            </AdminRoute>
-          }
+          element={<AdminDashboard />}
         />
         <Route
           path="/admin/users"
-          element={
-            <AdminRoute>
-              <AdminUsers />
-            </AdminRoute>
-          }
+          element={<AdminUsers />}
         />
         <Route
           path="/admin/transactions"
-          element={
-            <AdminRoute>
-              <AdminTransactions />
-            </AdminRoute>
-          }
+          element={<AdminTransactions />}
         />
         <Route
           path="/admin/deposits"
-          element={
-            <AdminRoute>
-              <AdminDeposits />
-            </AdminRoute>
-          }
+          element={<AdminDeposits />}
         />
         <Route
           path="/admin/settings"
-          element={
-            <AdminRoute>
-              <AdminSettings />
-            </AdminRoute>
-          }
+          element={<AdminSettings />}
         />
 
         {/* Default Route */}
