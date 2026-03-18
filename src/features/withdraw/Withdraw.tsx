@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ImageAnnouncementBar from '../../app/components/user/ImageAnnouncementBar';
 import { FLOW_ANNOUNCEMENT_SLIDES } from '../../app/components/user/announcementSlides';
+import { generateSecurityPin, getActiveFreezeState } from '../../app/components/user/userAccountState';
 import {
   OverviewStep,
   AmountStep,
@@ -47,7 +48,7 @@ const parseLinkedAccounts = (profile: Profile | null): LinkedBankAccount[] => {
 
 export const Withdraw: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuthContext();
+  const { user, updateUser } = useAuthContext();
 
   const [step, setStep] = useState<WithdrawStep>('overview');
   const [isLoading, setIsLoading] = useState(false);
@@ -125,6 +126,31 @@ export const Withdraw: React.FC = () => {
         setProfilePreferences(prefs);
         const parsedLinkedAccounts = parseLinkedAccounts(profile);
         setLinkedBankAccounts(parsedLinkedAccounts);
+
+        const activeFreeze = getActiveFreezeState(prefs);
+        if (activeFreeze) {
+          const selectedLinked =
+            activeFreeze.selectedLinkedAccountId
+              ? parsedLinkedAccounts.find((item) => item.id === activeFreeze.selectedLinkedAccountId) || null
+              : null;
+
+          setAmount(Number(activeFreeze.amount || 0));
+          setSelectedMethod(activeFreeze.method === 'linked-bank' ? 'linked-bank' : 'external-bank');
+          setSelectedLinkedAccountId(activeFreeze.selectedLinkedAccountId || null);
+          setSelectedLinkedAccount(selectedLinked);
+          setBankDetails({
+            accountName: activeFreeze.accountName || selectedLinked?.accountName || '',
+            accountNumber: activeFreeze.accountNumber || selectedLinked?.accountNumber || '',
+            bankName: activeFreeze.bankName || selectedLinked?.bankName || '',
+            remark: activeFreeze.remark || '',
+            saveAsDefault: false,
+          });
+          setTransactionId(activeFreeze.pendingWithdrawalId);
+          setEstimatedArrival(activeFreeze.estimatedArrival || new Date(Date.now() + 60 * 1000).toISOString());
+          setProgress(99);
+          setStatus('pending');
+          setStep('status');
+        }
       } catch (err) {
         setError('Failed to load account limits');
       } finally {
@@ -266,6 +292,7 @@ export const Withdraw: React.FC = () => {
         return;
       }
 
+      const estimatedArrivalIso = new Date(Date.now() + 60 * 1000).toISOString();
       const tx = await supabaseDbService.createTransaction({
         user_id: user.id,
         account_id: account.id,
@@ -293,6 +320,26 @@ export const Withdraw: React.FC = () => {
         return;
       }
 
+      const nextPreferences = {
+        ...profilePreferences,
+        accountFreeze: {
+          isFrozen: true,
+          reason: 'withdrawal_security_pin',
+          securityPin: generateSecurityPin(),
+          pendingWithdrawalId: tx.id,
+          createdAt: new Date().toISOString(),
+          amount,
+          currency: account.currency,
+          method: selectedMethod,
+          selectedLinkedAccountId,
+          bankName: bankDetails.bankName,
+          accountNumber: bankDetails.accountNumber,
+          accountName: bankDetails.accountName,
+          remark: bankDetails.remark || '',
+          estimatedArrival: estimatedArrivalIso,
+        },
+      };
+
       await supabaseDbService.createActivity({
         user_id: user.id,
         type: 'withdrawal',
@@ -309,8 +356,17 @@ export const Withdraw: React.FC = () => {
         path: '/dashboard/withdraw',
       });
 
+      setProfilePreferences(nextPreferences);
+      await supabaseDbService.updateProfile(user.id, {
+        status: 'SUSPENDED' as any,
+        preferences: nextPreferences,
+      });
+      updateUser({
+        status: 'SUSPENDED',
+        preferences: nextPreferences,
+      });
       setTransactionId(tx.id);
-      setEstimatedArrival(new Date(Date.now() + 60 * 1000).toISOString());
+      setEstimatedArrival(estimatedArrivalIso);
       setLimits((prev) =>
         prev
           ? {

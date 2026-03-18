@@ -66,7 +66,8 @@ export async function completeAccountCreation(
     name: profile?.name || fullName,
     status: 'ACTIVE',
     currency: profile?.currency || formData.currency,
-    avatar: profile?.avatar_url || avatarUrl || user.avatar
+    avatar: profile?.avatar_url || avatarUrl || user.avatar,
+    preferences: profile?.preferences || user.preferences || {}
   } as UserProfile;
 
   return {

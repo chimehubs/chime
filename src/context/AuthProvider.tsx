@@ -50,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             status: (userProfile?.status as any) || 'UNREGISTERED',
             currency: userProfile?.currency || 'USD',
             avatar: userProfile?.avatar_url || undefined,
+            preferences: userProfile?.preferences || {},
             accountNumber: (userProfile as any)?.account_number,
             createdAt: userProfile?.created_at ? new Date(userProfile.created_at) : undefined,
             updatedAt: userProfile?.updated_at ? new Date(userProfile.updated_at) : undefined,

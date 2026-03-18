@@ -7,7 +7,12 @@ export function initSupabase() {
   const key =
     import.meta.env.VITE_SUPABASE_ANON_KEY ||
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  if (!url || !key) return null;
+  if (!url || !key) {
+    if (import.meta.env.DEV) {
+      console.error('Supabase client could not initialize. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.');
+    }
+    return null;
+  }
   if (!supabase) supabase = createClient(url as string, key as string, { realtime: { params: { eventsPerSecond: 10 } } });
   return supabase;
 }

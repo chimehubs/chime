@@ -9,6 +9,7 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 import { useToast } from '../../../context/ToastProvider';
+import { getActiveFreezeState } from './userAccountState';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
@@ -28,6 +29,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [displayedText, setDisplayedText] = useState('');
   const [darkMode, setDarkMode] = useState(false);
+  const [accountFrozen, setAccountFrozen] = useState(false);
   const [hasExistingMessages, setHasExistingMessages] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -75,6 +77,7 @@ export default function Chat() {
       if (profile?.preferences?.darkMode !== undefined) {
         setDarkMode(!!profile.preferences.darkMode);
       }
+      setAccountFrozen(Boolean(getActiveFreezeState(profile?.preferences)));
       const thread = await supabaseDbService.getOrCreateChatThread(user.id);
       if (!thread?.id) return;
       setThreadId(thread.id);
@@ -265,6 +268,15 @@ export default function Chat() {
       <div className={`flex-1 overflow-y-auto px-6 py-6 ${
         darkMode ? 'bg-[#0d1117]' : 'bg-white'
       }`}>
+        {accountFrozen && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+            darkMode
+              ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}>
+            Your account is frozen pending withdrawal PIN verification. Customer support remains available so you can request the required 6-digit PIN.
+          </div>
+        )}
         {/* Welcome Message with Typing Animation - Only show if no existing messages */}
         {!hasExistingMessages && (
           <div className="flex justify-start mb-4">

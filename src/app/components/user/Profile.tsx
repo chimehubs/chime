@@ -26,6 +26,8 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService } from '../../../services/supabaseDbService';
 import { uploadFileToStorage } from '../../../services/supabaseClient';
 import { updatePasswordSupabase } from '../../../services/supabaseAuthService';
+import ImageAnnouncementBar from './ImageAnnouncementBar';
+import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -238,6 +240,7 @@ export default function Profile() {
 
       {/* Content */}
       <div className="px-6 py-8 max-w-2xl mx-auto space-y-8">
+        <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
         {/* Profile Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

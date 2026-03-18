@@ -7,6 +7,8 @@ import { supabaseDbService, type Transaction } from '../../../services/supabaseD
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
 import TransactionDetailsModal from './TransactionDetailsModal';
+import ImageAnnouncementBar from './ImageAnnouncementBar';
+import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
 
 export default function Activity() {
   const navigate = useNavigate();
@@ -145,6 +147,9 @@ export default function Activity() {
 
       {/* Transactions List */}
       <div className="max-w-2xl mx-auto p-6">
+        <div className="mb-6">
+          <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
+        </div>
         {loading ? (
           <motion.div
             initial={{ opacity: 0 }}

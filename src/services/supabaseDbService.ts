@@ -111,11 +111,20 @@ export interface ChatMessage {
 }
 
 class SupabaseDbService {
+  private logError(operation: string, error: unknown) {
+    if (import.meta.env.DEV && error) {
+      console.error(`[supabaseDbService] ${operation}`, error);
+    }
+  }
+
   async getProfile(userId: string): Promise<Profile | null> {
     const client = getClient();
     if (!client) return null;
     const { data, error } = await client.from('profiles').select('*').eq('id', userId).single();
-    if (error) return null;
+    if (error) {
+      this.logError('getProfile', error);
+      return null;
+    }
     return data as Profile;
   }
 
@@ -136,7 +145,10 @@ class SupabaseDbService {
       .eq('id', userId)
       .select()
       .single();
-    if (error) return null;
+    if (error) {
+      this.logError('updateProfile', error);
+      return null;
+    }
     return data as Profile;
   }
 
@@ -148,7 +160,10 @@ class SupabaseDbService {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
-    if (error) return [];
+    if (error) {
+      this.logError('getAccounts', error);
+      return [];
+    }
     return (data || []) as Account[];
   }
 
@@ -159,7 +174,10 @@ class SupabaseDbService {
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) return [];
+    if (error) {
+      this.logError('getAllProfiles', error);
+      return [];
+    }
     return (data || []) as Profile[];
   }
 
@@ -170,7 +188,10 @@ class SupabaseDbService {
       .from('accounts')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) return [];
+    if (error) {
+      this.logError('getAllAccounts', error);
+      return [];
+    }
     return (data || []) as Account[];
   }
 
@@ -213,7 +234,10 @@ class SupabaseDbService {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (error) return [];
+    if (error) {
+      this.logError('getTransactions', error);
+      return [];
+    }
     return (data || []) as Transaction[];
   }
 
@@ -224,7 +248,10 @@ class SupabaseDbService {
     if (filters?.type) query = query.eq('type', filters.type);
     if (filters?.status) query = query.eq('status', filters.status);
     const { data, error } = await query;
-    if (error) return [];
+    if (error) {
+      this.logError('getAllTransactions', error);
+      return [];
+    }
     return (data || []) as Transaction[];
   }
 
@@ -236,7 +263,10 @@ class SupabaseDbService {
       .insert(payload)
       .select()
       .single();
-    if (error) return null;
+    if (error) {
+      this.logError('createTransaction', error);
+      return null;
+    }
     return data as Transaction;
   }
 
@@ -381,6 +411,7 @@ class SupabaseDbService {
       .select()
       .single();
     if (!error && data) return data as ChatThread;
+    if (error) this.logError('getOrCreateChatThread', error);
 
     // Fallback for race conditions where another request created the thread first.
     const { data: fallback } = await client
@@ -414,7 +445,10 @@ class SupabaseDbService {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
       .limit(limit);
-    if (error) return [];
+    if (error) {
+      this.logError('getChatMessages', error);
+      return [];
+    }
     return (data || []) as ChatMessage[];
   }
 
@@ -438,7 +472,10 @@ class SupabaseDbService {
       .insert(payload)
       .select()
       .single();
-    if (error) return null;
+    if (error) {
+      this.logError('sendChatMessage', error);
+      return null;
+    }
     return data as ChatMessage;
   }
 
@@ -502,7 +539,10 @@ class SupabaseDbService {
     const client = getClient();
     if (!client) return null;
     const { data, error } = await client.rpc('create_account', payload);
-    if (error) return null;
+    if (error) {
+      this.logError('createAccount', error);
+      return null;
+    }
     return data as { account: Account; card: VirtualCard };
   }
 }

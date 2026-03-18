@@ -1,6 +1,6 @@
 export type Role = 'user' | 'admin' | 'guest';
 
-export type UserStatus = 'UNREGISTERED' | 'ACTIVE' | 'RESTRICTED';
+export type UserStatus = 'UNREGISTERED' | 'ACTIVE' | 'SUSPENDED' | 'RESTRICTED';
 
 export interface UserProfile {
   id: string;
@@ -18,6 +18,7 @@ export interface UserProfile {
   accountNumber?: string;
   routingNumber?: string;
   balance?: number;
+  preferences?: Record<string, any>;
   createdAt?: Date;
   updatedAt?: Date;
 }

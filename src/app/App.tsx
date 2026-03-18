@@ -9,6 +9,10 @@ import Savings from './components/user/Savings';
 import Profile from './components/user/Profile';
 import Cards from './components/user/Cards';
 import Chat from './components/user/Chat';
+import PayBills from './components/user/PayBills';
+import Betting from './components/user/Betting';
+import Cashback from './components/user/Cashback';
+import Loan from './components/user/Loan';
 import Withdraw from '../features/withdraw/Withdraw';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminUsers from './components/admin/AdminUsers';
@@ -131,6 +135,38 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Chat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/pay-bills"
+          element={
+            <ProtectedRoute>
+              <PayBills />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/betting"
+          element={
+            <ProtectedRoute>
+              <Betting />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/cashback"
+          element={
+            <ProtectedRoute>
+              <Cashback />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/loan"
+          element={
+            <ProtectedRoute>
+              <Loan />
             </ProtectedRoute>
           }
         />

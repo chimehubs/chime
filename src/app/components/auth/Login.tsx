@@ -24,7 +24,7 @@ export default function Login() {
     try {
       const resp = await signInWithSupabase(email, password);
       if (resp.error) throw resp.error;
-      const userId = resp.data?.user?.id;
+      const userId = resp.user?.id;
       if (userId) {
         const profile = await supabaseDbService.getProfile(userId);
         if (profile?.role === 'admin') {

@@ -62,6 +62,7 @@ export default function Dashboard() {
   const [incomeThisWeek, setIncomeThisWeek] = useState(0);
   const [expensesThisWeek, setExpensesThisWeek] = useState(0);
   const [greeting, setGreeting] = useState('Welcome');
+  const [savingsBalance, setSavingsBalance] = useState(0);
 
   useEffect(() => {
     const computeGreeting = () => {
@@ -92,11 +93,17 @@ export default function Dashboard() {
     const loadProfilePrefs = async () => {
       if (!user?.id) return;
       const profile = await supabaseDbService.getProfile(user.id);
+      const preferences = profile?.preferences || user.preferences || {};
       if (profile?.preferences?.darkMode !== undefined) {
         setDarkMode(!!profile.preferences.darkMode);
       }
+      const savingsGoals = Array.isArray(preferences.savingsGoals) ? preferences.savingsGoals : [];
+      setSavingsBalance(
+        savingsGoals.reduce((total: number, goal: { current?: number }) => total + Number(goal?.current || 0), 0),
+      );
       const status = (profile?.status || user?.status || '').toString().toUpperCase();
-      if (status === 'ACTIVE' && profile?.preferences?.onboardingSeen !== true) {
+      const onboardingSessionKey = `onboarding_seen_${user.id}`;
+      if (status === 'ACTIVE' && preferences.onboardingSeen !== true && sessionStorage.getItem(onboardingSessionKey) !== 'true') {
         setShowOnboarding(true);
       } else {
         setShowOnboarding(false);
@@ -106,7 +113,8 @@ export default function Dashboard() {
           name: profile.name || user.name,
           avatar: profile.avatar_url || user.avatar,
           currency: profile.currency || user.currency,
-          status: (profile.status as any) || user.status
+          status: (profile.status as any) || user.status,
+          preferences,
         });
       }
     };
@@ -161,8 +169,12 @@ export default function Dashboard() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
     if (user?.id) {
+      sessionStorage.setItem(`onboarding_seen_${user.id}`, 'true');
       supabaseDbService.updateProfile(user.id, {
-        preferences: { ...(user as any)?.preferences, onboardingSeen: true }
+        preferences: { ...(user.preferences || {}), onboardingSeen: true }
+      });
+      updateUser({
+        preferences: { ...(user.preferences || {}), onboardingSeen: true },
       });
     }
   };
@@ -179,7 +191,10 @@ export default function Dashboard() {
     setDarkMode(newDarkMode);
     if (user?.id) {
       await supabaseDbService.updateProfile(user.id, {
-        preferences: { ...(user as any)?.preferences, darkMode: newDarkMode }
+        preferences: { ...(user.preferences || {}), darkMode: newDarkMode }
+      });
+      updateUser({
+        preferences: { ...(user.preferences || {}), darkMode: newDarkMode },
       });
     }
   };
@@ -334,6 +349,15 @@ export default function Dashboard() {
                   <ArrowUpRight className="w-4 h-4" />
                   <span>+12.5% this month</span>
                 </div>
+                <div className="mt-4 pt-4 border-t border-white/15 flex items-center justify-between gap-3 text-white/85 text-sm">
+                  <div className="flex items-center gap-2">
+                    <PiggyBank className="w-4 h-4" />
+                    <span>Savings Balance</span>
+                  </div>
+                  <span className="font-semibold text-white">
+                    {balanceVisible ? formatBalance(savingsBalance) : '******'}
+                  </span>
+                </div>
               </div>
             </Card>
           </motion.div>
@@ -361,10 +385,10 @@ export default function Dashboard() {
                 { icon: ArrowDownRight, label: 'Withdraw', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/withdraw', soon: false },
                 { icon: CreditCard, label: 'Cards', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/cards', soon: false },
                 { icon: PiggyBank, label: 'Save', color: '#00a37a', bgColor: '#e9f8f3', path: '/savings', soon: false },
-                { icon: Banknote, label: 'Pay Bills', color: '#00a37a', bgColor: '#e9f8f3', path: null, soon: true },
-                { icon: Dice5, label: 'Betting', color: '#00a37a', bgColor: '#e9f8f3', path: null, soon: true },
-                { icon: Gift, label: 'Cashback', color: '#00a37a', bgColor: '#e9f8f3', path: null, soon: true },
-                { icon: Landmark, label: 'Loan', color: '#00a37a', bgColor: '#e9f8f3', path: null, soon: true }
+                { icon: Banknote, label: 'Pay Bills', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/pay-bills', soon: false },
+                { icon: Dice5, label: 'Betting', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/betting', soon: false },
+                { icon: Gift, label: 'Cashback', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/cashback', soon: false },
+                { icon: Landmark, label: 'Loan', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/loan', soon: false }
               ].map((action, index) => (
                 <motion.button
                   key={action.label}

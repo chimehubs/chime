@@ -17,6 +17,8 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Account, type VirtualCard } from '../../../services/supabaseDbService';
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
+import ImageAnnouncementBar from './ImageAnnouncementBar';
+import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
 import './Cards.css';
 
 export default function Cards() {
@@ -312,6 +314,9 @@ export default function Cards() {
 
       {/* Content */}
       <div className="px-6 py-6 pb-24">
+        <div className="mb-6">
+          <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
+        </div>
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="text-muted-foreground">Loading cards...</div>
@@ -513,6 +518,21 @@ export default function Cards() {
             })}
           </motion.div>
         )}
+
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.18 }}
+          className="mt-10"
+        >
+          <Card className={`overflow-hidden border ${darkMode ? 'bg-[#161b22] border-[#21262d]' : 'bg-white border-[#dbe7e2]'}`}>
+            <img
+              src="/assets/cards-sticker.jfif"
+              alt="Card services sticker"
+              className="w-full h-auto object-cover"
+            />
+          </Card>
+        </motion.div>
       </div>
     </div>
   );

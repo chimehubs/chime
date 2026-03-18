@@ -2,6 +2,7 @@
 export type UserStatus = 
   | 'UNREGISTERED'
   | 'ACTIVE'
+  | 'SUSPENDED'
   | 'RESTRICTED';
 
 export type Role = 'user' | 'admin' | 'guest';
@@ -33,6 +34,7 @@ export interface UserProfile {
   salaryRange?: string;
   pin?: string; // Store hashed PIN in production
   photoUrl?: string; // URL to uploaded photo used as avatar
+  preferences?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }
