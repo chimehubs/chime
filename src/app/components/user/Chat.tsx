@@ -141,7 +141,7 @@ export default function Chat() {
     try {
       const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
       if (!thread?.id) {
-        addToast('error', 'Unable to open support chat right now.');
+        addToast('error', 'Unable to open customer support right now.');
         return;
       }
       if (!threadId) setThreadId(thread.id);
@@ -177,7 +177,7 @@ export default function Chat() {
       try {
         const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
         if (!thread?.id) {
-          addToast('error', 'Unable to open support chat right now.');
+          addToast('error', 'Unable to open customer support right now.');
           return;
         }
         if (!threadId) setThreadId(thread.id);

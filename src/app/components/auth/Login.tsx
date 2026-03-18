@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { signInWithSupabase } from '../../../services/supabaseAuthService';
+import { supabaseDbService } from '../../../services/supabaseDbService';
 import { Logo } from '../Logo';
 
 export default function Login() {
@@ -22,6 +23,14 @@ export default function Login() {
     try {
       const resp = await signInWithSupabase(email, password);
       if (resp.error) throw resp.error;
+      const userId = resp.data?.user?.id;
+      if (userId) {
+        const profile = await supabaseDbService.getProfile(userId);
+        if (profile?.role === 'admin') {
+          navigate('/admin');
+          return;
+        }
+      }
       navigate('/dashboard');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';

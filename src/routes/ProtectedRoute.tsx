@@ -10,8 +10,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuthContext();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/login?admin=1" replace />;
+  if (user?.role !== 'admin') return <Navigate to="/login?admin=1" replace />;
   return <>{children}</>;
 };
 

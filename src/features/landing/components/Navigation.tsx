@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
@@ -7,8 +7,21 @@ import { Logo } from '../../../app/components/Logo';
 export const Navigation: React.FC = () => {
   const navigate = useNavigate();
   const logoClickCount = useRef(0);
+  const clickResetTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (clickResetTimer.current) {
+        window.clearTimeout(clickResetTimer.current);
+      }
+    };
+  }, []);
 
   const handleLogoClick = () => {
+    if (clickResetTimer.current) {
+      window.clearTimeout(clickResetTimer.current);
+    }
+
     logoClickCount.current += 1;
 
     if (logoClickCount.current >= 5) {
@@ -17,7 +30,9 @@ export const Navigation: React.FC = () => {
       return;
     }
 
-    navigate('/');
+    clickResetTimer.current = window.setTimeout(() => {
+      logoClickCount.current = 0;
+    }, 2200);
   };
 
   return (

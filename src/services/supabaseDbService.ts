@@ -377,11 +377,21 @@ class SupabaseDbService {
 
     const { data, error } = await client
       .from('chat_threads')
-      .insert({ user_id: userId, status: 'open' })
+      .upsert({ user_id: userId, status: 'open' }, { onConflict: 'user_id' })
       .select()
       .single();
-    if (error) return null;
-    return data as ChatThread;
+    if (!error && data) return data as ChatThread;
+
+    // Fallback for race conditions where another request created the thread first.
+    const { data: fallback } = await client
+      .from('chat_threads')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    if (fallback) return fallback as ChatThread;
+
+    return null;
   }
 
   async getAllChatThreads(): Promise<ChatThread[]> {
