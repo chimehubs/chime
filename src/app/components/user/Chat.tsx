@@ -37,6 +37,7 @@ export default function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasRunAnimation = useRef(false);
+  const prefillApplied = useRef(false);
   const welcomeMessage = 'Hello! Welcome to Chimahub customer support. How can we assist you today?';
   const { addToast } = useToast();
 
@@ -106,6 +107,15 @@ export default function Chat() {
       client.removeChannel(channel);
     };
   }, [threadId]);
+
+  useEffect(() => {
+    if (prefillApplied.current) return;
+    const prefill = (location.state as any)?.prefillMessage;
+    if (typeof prefill === 'string' && prefill.trim()) {
+      setInput(prefill.trim());
+      prefillApplied.current = true;
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!threadId) return;

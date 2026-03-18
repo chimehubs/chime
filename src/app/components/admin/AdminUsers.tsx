@@ -71,6 +71,8 @@ export default function AdminUsers() {
   }, [adminUser?.id]);
 
   React.useEffect(() => {
+    let mounted = true;
+
     const loadUsers = async () => {
       const [profiles, accounts, transactions] = await Promise.all([
         supabaseDbService.getAllProfiles(),
@@ -106,10 +108,22 @@ export default function AdminUsers() {
           account
         } as AdminUserRow;
       });
+
+      if (!mounted) return;
       setUsers(rows);
     };
+
     loadUsers();
-  }, []);
+    const interval = window.setInterval(loadUsers, 10000);
+    const onFocus = () => loadUsers();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [adminUser?.id]);
 
   // Admin payment details state
   const [adminBankName, setAdminBankName] = useState('');
@@ -194,9 +208,17 @@ export default function AdminUsers() {
         account_id: selectedUser.account.id,
         type: 'credit',
         amount: numAmount,
-        description: `Admin funding from ${senderName}`,
+        description: `Credit from ${senderName} (${senderBank})`,
         currency: userCurrency,
         status: 'completed',
+        metadata: {
+          sender_name: senderName,
+          sender_bank: senderBank,
+          sender_account_number: senderAccountNumber,
+          funding_method: fundingMethod,
+          routing_number: routingNumber || null,
+          transfer_message: transferMessage || null,
+        },
       });
       if (!tx) {
         setFundError('Failed to fund account. Please verify admin permissions and try again.');
@@ -206,7 +228,7 @@ export default function AdminUsers() {
       const activity = await supabaseDbService.createActivity({
         user_id: selectedUser.profile.id,
         type: 'credit',
-        description: 'Account funded by admin',
+        description: `Credited from ${senderName} - ${senderBank}`,
         amount: numAmount,
       });
       if (!activity) {
@@ -215,8 +237,8 @@ export default function AdminUsers() {
 
       const notification = await supabaseDbService.createNotification({
         user_id: selectedUser.profile.id,
-        title: 'Credit Alert: Account Funded',
-        message: `Your account has been credited with ${currencySymbol}${numAmount.toFixed(2)}. New balance: ${formattedBalance}`,
+        title: 'Credit Alert',
+        message: `Your account was credited with ${currencySymbol}${numAmount.toFixed(2)} from ${senderName} (${senderBank}). New balance: ${formattedBalance}`,
         type: 'credit',
         read: false,
         path: '/activity',

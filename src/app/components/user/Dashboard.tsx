@@ -31,11 +31,63 @@ import NotificationDropdown from './NotificationDropdown';
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
 import { OnboardingGuide } from './OnboardingGuide';
+import ImageAnnouncementBar, { type AnnouncementSlide } from './ImageAnnouncementBar';
+import TransactionDetailsModal from './TransactionDetailsModal';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 import { formatCurrency } from '../ui/utils';
+
+const HEADER_NEWS_SLIDES: AnnouncementSlide[] = [
+  {
+    image:
+      'https://images.ctfassets.net/ao7gxs2zk32d/69lb8HoCssCzMlE1T2LkVi/8f679839b5cd471ce47b9db67734f78d/Mobile_Chime_Card_Phone_Transition_Black_250917-1.webp',
+    text: 'Card controls are now faster and easier in your dashboard.',
+    link: '/dashboard/cards',
+  },
+  {
+    image: 'https://assets.bitdegree.org/images/how-to-transfer-money-from-chime-to-bank-account-intro.jpg',
+    text: 'Move funds to any supported bank account in a few taps.',
+    link: '/dashboard/withdraw',
+  },
+  {
+    image: 'https://mir-s3-cdn-cf.behance.net/projects/original/d0b55e195794131.Y3JvcCwxODM1LDE0MzYsMzU5LDA.png',
+    text: 'Track your account activity with full receipt details.',
+    link: '/activity',
+  },
+  {
+    image:
+      'https://media.licdn.com/dms/image/v2/D4E22AQE6BxPDjfkjkw/feedshare-shrink_800/B4EZrqtMU1KgAk-/0/1764874307855?e=2147483647&v=beta&t=rsjrfsP-KoyTNTWGNQz-uz_AWF5abuixUywhw8rYiNY',
+    text: 'Daily alerts keep you informed on every balance change.',
+    link: '/activity',
+  },
+];
+
+const PROMOTION_SLIDES: AnnouncementSlide[] = [
+  {
+    image:
+      'https://media.licdn.com/dms/image/v2/C5622AQHEVpEJldJcAQ/feedshare-shrink_800/feedshare-shrink_800/0/1655355865182?e=2147483647&v=beta&t=lHrULjNLSunXi3MdYlKziLChuJNbjKSzSRtkcjspeqQ',
+    text: 'Explore smart ways to save with your account goals.',
+    link: '/savings',
+  },
+  {
+    image: 'https://www.medialogic.com/wp-content/uploads/2021/02/FS-chime-bank-21021-blog11.jpg',
+    text: 'Get instant support from customer care whenever you need help.',
+    link: '/chat',
+  },
+  {
+    image: 'https://cdn.prod.website-files.com/67853eb4b679ea06a39ed516/680f8560a191af4fa5a63b4d_Chime_3.jpg',
+    text: 'Monitor your cards and spending insights in one place.',
+    link: '/dashboard/cards',
+  },
+  {
+    image:
+      'https://images.ctfassets.net/ao7gxs2zk32d/7sfYpZOTLBRJWhfxOQShZS/fd039c67f9b49d507e602e766124bb8e/hp-redeisgn-Open-graph.webp',
+    text: 'Stay secure with real-time account alerts and tracking.',
+    link: '/activity',
+  },
+];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -51,6 +103,7 @@ export default function Dashboard() {
   const [chatMessageCount, setChatMessageCount] = useState(0);
   const [userAccounts, setUserAccounts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [spendingChartData, setSpendingChartData] = useState<{ name: string; amount: number }[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [spendingThisWeek, setSpendingThisWeek] = useState(0);
@@ -183,7 +236,8 @@ export default function Dashboard() {
   // Fetch real account balance from database
   useEffect(() => {
     if (!user?.id) return;
-    const targetBalance = transactions.reduce((total, tx) => {
+    const completedTransactions = transactions.filter((tx) => tx.status === 'completed');
+    const targetBalance = completedTransactions.reduce((total, tx) => {
       const amount = Number(tx.amount || 0);
       return tx.type === 'credit' ? total + amount : total - amount;
     }, 0);
@@ -216,7 +270,7 @@ export default function Dashboard() {
       let thisWeekIncome = 0;
       let thisWeekExpenses = 0;
       let lastWeekSpending = 0;
-      const allTransactions: Transaction[] = [...transactions];
+      const allTransactions: Transaction[] = transactions.filter((tx) => tx.status === 'completed');
 
       // Weekly calculations
       allTransactions.forEach((tx) => {
@@ -275,7 +329,7 @@ export default function Dashboard() {
   const renderContent = () => {
     if (currentView === 'home') {
       return (
-        <div className="px-6 pb-24 space-y-6">
+        <div className="px-6 pb-44 md:pb-28 space-y-6">
           {/* Balance Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -285,21 +339,21 @@ export default function Dashboard() {
           >
             <Card className="p-6 bg-gradient-to-br from-[#00b388] to-[#009f7a] border-0 shadow-lg relative">
 <div className="relative z-10">
-              <div className="flex items-start justify-between mb-6">
-                <div>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <p className="text-white/85 text-sm mb-1">Available Balance {userAccounts.length > 0 ? `(${userAccounts[0]?.account_number})` : ''}</p>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {balanceVisible ? (
                       <motion.h2
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="text-4xl text-white tracking-tight font-semibold tabular-nums"
+                        className="text-3xl sm:text-4xl text-white tracking-tight font-semibold tabular-nums break-all"
                       >
                         {formatBalance(balance)}
                       </motion.h2>
                     ) : (
-                      <h2 className="text-4xl text-white/90 tracking-tight font-semibold">
-                        ••••••
+                      <h2 className="text-3xl sm:text-4xl text-white/90 tracking-tight font-semibold">
+                        ******
                       </h2>
                     )}
                     <button
@@ -311,7 +365,7 @@ export default function Dashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
                   <button
                     onClick={() => setShowHistoryModal(true)}
                     title="View transaction history"
@@ -333,6 +387,26 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
+          {/* Header News */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.06 }}
+          >
+            <h3 className={`mb-2 text-sm font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Header News</h3>
+            <ImageAnnouncementBar items={HEADER_NEWS_SLIDES} />
+          </motion.div>
+
+          {/* Promotions */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+          >
+            <h3 className={`mb-2 text-sm font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Promotions</h3>
+            <ImageAnnouncementBar items={PROMOTION_SLIDES} />
+          </motion.div>
+
           {/* Quick Actions */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -340,7 +414,7 @@ export default function Dashboard() {
             transition={{ duration: 0.5, delay: 0.1 }}
             data-tour="quick-actions"
           >
-            <h3 className="text-sm mb-4 text-[#5f7a72] font-medium">Quick Actions</h3>
+            <h3 className={`text-sm mb-4 font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Quick Actions</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
                 { icon: Plus, label: 'Add', color: '#00a37a', bgColor: '#e9f8f3', path: '/add-money', soon: false },
@@ -361,7 +435,11 @@ export default function Dashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
-                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl bg-white border border-[#d7ebe4] shadow-sm transition-all ${
+                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border shadow-sm transition-all ${
+                    darkMode
+                      ? 'bg-[#161b22] border-[#21262d] text-[#e8eaed]'
+                      : 'bg-white border-[#d7ebe4]'
+                  } ${
                     action.soon 
                       ? 'opacity-60 cursor-not-allowed' 
                       : 'hover:border-[#9ddfcb] hover:shadow-md'
@@ -383,14 +461,14 @@ export default function Dashboard() {
                     whileHover={action.soon ? {} : { rotate: 5, scale: 1.1 }}
                     animate={{ y: [0, -3, 0] }}
                     transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
-                    style={{ backgroundColor: action.bgColor }}
+                    style={{ backgroundColor: darkMode ? 'rgba(255,255,255,0.08)' : action.bgColor }}
                     className="w-12 h-12 rounded-full flex items-center justify-center"
                   >
                     <motion.div animate={action.soon ? {} : { rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
                       <action.icon className="w-5 h-5" style={{ color: action.color }} />
                     </motion.div>
                   </motion.div>
-                  <span className="text-xs font-medium text-[#1f3b36]">{action.label}</span>
+                  <span className={`text-xs font-medium ${darkMode ? 'text-[#e8eaed]' : 'text-[#1f3b36]'}`}>{action.label}</span>
                 </motion.button>
               ))}
             </div>
@@ -408,18 +486,20 @@ export default function Dashboard() {
 
               return (
                 <div className="mb-6">
-                  <h3 className="text-sm mb-4 text-[#5f7a72] font-medium">Pending Transactions</h3>
+                  <h3 className={`text-sm mb-4 font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Pending Transactions</h3>
                   <div className="space-y-3">
                     {pendingTx.slice(0, 3).map((tx) => (
                       <Card
                         key={tx.id}
-                        className="p-4 border-l-4 border-l-[#00b388] hover:shadow-md hover:bg-[#f2faf7] transition-all cursor-pointer"
+                        className={`p-4 border-l-4 border-l-[#00b388] hover:shadow-md transition-all cursor-pointer ${
+                          darkMode ? 'bg-[#161b22] border-[#21262d] hover:bg-[#1f2937]' : 'hover:bg-[#f2faf7]'
+                        }`}
                         onClick={() => navigate('/activity')}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#e9f8f3] flex items-center justify-center">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-[#0f2e2a]' : 'bg-[#e9f8f3]'}`}>
                                 {tx.type === 'credit' ? <Plus className="w-5 h-5 text-[#00a37a]" /> : <ArrowDownRight className="w-5 h-5 text-[#00a37a]" />}
                               </div>
                               <div>
@@ -447,8 +527,8 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <h3 className="text-sm mb-4 text-[#5f7a72] font-medium">Spending Insights</h3>
-            <Card className="p-6 bg-white border border-[#d7ebe4] shadow-sm hover:shadow-md transition-shadow">
+            <h3 className={`text-sm mb-4 font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Spending Insights</h3>
+            <Card className={`p-6 shadow-sm hover:shadow-md transition-shadow ${darkMode ? 'bg-[#161b22] border-[#21262d]' : 'bg-white border border-[#d7ebe4]'}`}>
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">This Week</p>
@@ -467,7 +547,9 @@ export default function Dashboard() {
                 >
                   {spendingLastWeek > 0 ? (
                     <>
-                      <div className="flex items-center gap-1 text-sm mb-2 px-3 py-1 rounded-full w-fit ml-auto bg-[#e9f8f3] text-[#047857]">
+                      <div className={`flex items-center gap-1 text-sm mb-2 px-3 py-1 rounded-full w-fit ml-auto ${
+                        darkMode ? 'bg-[#0f2e2a] text-[#7ee4bf]' : 'bg-[#e9f8f3] text-[#047857]'
+                      }`}>
                         {spendingThisWeek < spendingLastWeek ? (
                           <><ArrowDownRight className="w-4 h-4" /><span className="font-semibold">{Math.round(((spendingLastWeek - spendingThisWeek) / spendingLastWeek) * 100)}% less</span></>
                         ) : (
@@ -482,17 +564,17 @@ export default function Dashboard() {
                 </motion.div>
               </div>
               
-              <div className="bg-[#f6fbf9] dark:bg-white/5 rounded-xl p-4 mb-6 border border-[#d7ebe4]" data-tour="spending-chart">
+              <div className={`rounded-xl p-4 mb-6 ${darkMode ? 'bg-[#0d1117] border border-[#21262d]' : 'bg-[#f6fbf9] border border-[#d7ebe4]'}`} data-tour="spending-chart">
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={spendingChartData} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
                     <XAxis 
                       dataKey="name" 
-                      stroke="#e5e7eb"
-                      style={{ fontSize: '12px' }}
+                      stroke={darkMode ? '#94a3b8' : '#475569'}
+                      tick={{ fill: darkMode ? '#94a3b8' : '#334155', fontSize: 12, fontWeight: 500 }}
                     />
                     <YAxis 
-                      stroke="#e5e7eb"
-                      style={{ fontSize: '12px' }}
+                      stroke={darkMode ? '#94a3b8' : '#475569'}
+                      tick={{ fill: darkMode ? '#94a3b8' : '#334155', fontSize: 12, fontWeight: 500 }}
                     />
                     <Line
                       type="monotone"
@@ -511,7 +593,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <motion.div 
                   whileHover={{ scale: 1.03 }}
-                  className="p-4 rounded-lg bg-[#f8fcfa] border border-[#d7ebe4] shadow-sm"
+                  className={`p-4 rounded-lg shadow-sm ${darkMode ? 'bg-[#0d1117] border border-[#21262d]' : 'bg-[#f8fcfa] border border-[#d7ebe4]'}`}
                 >
                   <div className="text-xs text-muted-foreground font-medium mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
@@ -521,7 +603,7 @@ export default function Dashboard() {
                 </motion.div>
                 <motion.div 
                   whileHover={{ scale: 1.03 }}
-                  className="p-4 rounded-lg bg-[#f8fcfa] border border-[#d7ebe4] shadow-sm"
+                  className={`p-4 rounded-lg shadow-sm ${darkMode ? 'bg-[#0d1117] border border-[#21262d]' : 'bg-[#f8fcfa] border border-[#d7ebe4]'}`}
                 >
                   <div className="text-xs text-muted-foreground font-medium mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-[#10b981]" />
@@ -540,7 +622,7 @@ export default function Dashboard() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm text-muted-foreground font-medium">Recent Activity</h3>
+              <h3 className={`text-sm font-medium ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>Recent Activity</h3>
               <button
                 onClick={() => setCurrentView('activity')}
                 className="text-sm text-[#00b388] hover:text-[#009670] transition-colors font-medium"
@@ -548,15 +630,19 @@ export default function Dashboard() {
                 View All
               </button>
             </div>
-            <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden" data-tour="recent-transactions">
+            <Card className={`shadow-sm hover:shadow-md transition-shadow overflow-y-auto max-h-[360px] ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`} data-tour="recent-transactions">
               {transactions.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground">
                   <p>Your recent transactions will appear here once your account is active.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {transactions.slice(0, 4).map((tx) => (
-                    <div key={tx.id} className="p-4 flex items-center justify-between">
+                  {transactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => setSelectedTransaction(tx)}
+                    >
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{tx.description}</p>
                         <p className="text-xs text-muted-foreground">
@@ -576,21 +662,25 @@ export default function Dashboard() {
       );
     } else if (currentView === 'activity') {
       return (
-        <div className="px-6 pb-24 space-y-6">
+        <div className="px-6 pb-44 md:pb-28 space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
             <h2 className="text-2xl mb-6 font-semibold">All Transactions</h2>
-            <Card className="divide-y divide-border">
+            <Card className={`divide-y divide-border max-h-[65vh] overflow-y-auto ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
               {transactions.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground">
                   <p>No transactions yet.</p>
                 </div>
               ) : (
                 transactions.map((tx) => (
-                  <div key={tx.id} className="p-4 flex items-center justify-between">
+                  <div
+                    key={tx.id}
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => setSelectedTransaction(tx)}
+                  >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{tx.description}</p>
                       <p className="text-xs text-muted-foreground">
@@ -609,7 +699,7 @@ export default function Dashboard() {
       );
     } else if (currentView === 'profile') {
       return (
-        <div className="px-6 pb-24 space-y-6">
+        <div className="px-6 pb-44 md:pb-28 space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -720,7 +810,7 @@ export default function Dashboard() {
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 3, repeat: Infinity, delay: 0.6 }}
               onClick={() => navigate('/profile')}
-              className="relative transition-transform shadow-sm hover:shadow-md"
+              className="relative rounded-full transition-transform shadow-sm hover:shadow-md"
               title="Profile"
             >
               <Avatar className="w-10 h-10 border-2 border-[#dbe7e2] hover:border-[#9ddfcb]">
@@ -767,14 +857,14 @@ export default function Dashboard() {
               className="flex flex-col items-center gap-1 transition-colors p-2 rounded-lg shadow-sm hover:shadow-md"
             >
               <motion.div
-                style={{ backgroundColor: item.bgColor }}
+                style={{ backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : item.bgColor }}
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
               >
                 <motion.div whileHover={{ rotate: 10, scale: 1.15 }}>
                   <item.icon className="w-5 h-5" style={{ color: item.color }} />
                 </motion.div>
               </motion.div>
-              <span className="text-xs font-medium">{item.label}</span>
+              <span className={`text-xs font-medium ${darkMode ? 'text-[#e8eaed]' : 'text-[#1f3b36]'}`}>{item.label}</span>
             </motion.button>
           ))}
           {/* Cards Navigation Button */}
@@ -786,12 +876,15 @@ export default function Dashboard() {
             transition={{ duration: 2.5, repeat: Infinity, delay: 1.2 }}
             className="flex flex-col items-center gap-1 transition-colors cursor-pointer p-2 rounded-lg shadow-sm hover:shadow-md"
           >
-            <motion.div style={{ backgroundColor: '#e9f8f3' }} className="w-10 h-10 rounded-lg flex items-center justify-center">
+            <motion.div
+              style={{ backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#e9f8f3' }}
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+            >
               <motion.div whileHover={{ rotate: 10, scale: 1.15 }}>
                 <CreditCard className="w-5 h-5" style={{ color: '#00a37a' }} />
               </motion.div>
             </motion.div>
-            <span className="text-xs font-medium">Cards</span>
+            <span className={`text-xs font-medium ${darkMode ? 'text-[#e8eaed]' : 'text-[#1f3b36]'}`}>Cards</span>
           </motion.button>
         </div>
       </motion.div>
@@ -876,7 +969,8 @@ export default function Dashboard() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="p-4 flex items-center gap-4 hover:bg-accent/50 transition-colors"
+                      className="p-4 flex items-center gap-4 hover:bg-accent/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedTransaction(transaction)}
                     >
                       <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-lg flex-shrink-0">
                         {transaction.type === 'debit' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
@@ -918,6 +1012,12 @@ export default function Dashboard() {
       )}
 
 
+      <TransactionDetailsModal
+        isOpen={!!selectedTransaction}
+        transaction={selectedTransaction}
+        fallbackCurrency={user?.currency || 'USD'}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </div>
   );
 }

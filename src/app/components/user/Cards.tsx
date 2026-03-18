@@ -9,7 +9,7 @@ import {
   Trash2,
   CreditCard,
   LogOut,
-  Home,
+  ArrowLeft,
   Unlock
 } from 'lucide-react';
 import { Card } from '../ui/card';
@@ -77,11 +77,13 @@ export default function Cards() {
     ]);
 
     const balanceMap = new Map<string, number>();
-    txnData.forEach(txn => {
+    txnData
+      .filter((txn) => txn.status === 'completed')
+      .forEach(txn => {
       const amount = Number(txn.amount || 0);
       const current = balanceMap.get(txn.account_id) || 0;
       balanceMap.set(txn.account_id, txn.type === 'credit' ? current + amount : current - amount);
-    });
+      });
 
     const frozen = new Set<string>();
     cardData.forEach(card => {
@@ -132,11 +134,19 @@ export default function Cards() {
 
   const maskCardNumber = (cardNumber: string) => {
     const last4 = cardNumber.slice(-4);
-    return `•••• •••• •••• ${last4}`;
+    return `**** **** **** ${last4}`;
   };
 
   const formatCardNumber = (cardNumber: string) => {
     return cardNumber.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  const formatMoney = (value: number, currencyCode: string) => {
+    const formatted = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(value);
+    return currencyCode === 'USD' ? formatted.replace(/^US\$/, '$') : formatted;
   };
 
   const getCardMeta = (card: VirtualCard) => {
@@ -271,15 +281,18 @@ export default function Cards() {
           <div className="flex items-center gap-3">
             <motion.button
               onClick={() => navigate('/dashboard')}
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.95 }}
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 3, repeat: Infinity }}
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-md hover:shadow-lg"
+              className="h-10 px-3 rounded-full flex items-center justify-center gap-2 transition-colors shadow-md hover:shadow-lg"
               style={{ backgroundColor: '#FFE5E5' }}
               title="Back to Dashboard"
             >
-              <Home className="w-5 h-5" style={{ color: '#FF6B6B' }} />
+              <ArrowLeft className="w-4 h-4" style={{ color: '#FF6B6B' }} />
+              <span className="hidden sm:inline text-sm font-medium" style={{ color: '#FF6B6B' }}>
+                Back to Dashboard
+              </span>
             </motion.button>
             <motion.button
               onClick={handleLogout}
@@ -340,52 +353,47 @@ export default function Cards() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  {/* Card Design */}
-                  <div className="relative">
-                  <div
-                    className={`relative overflow-hidden rounded-2xl p-6 min-h-64 flex flex-col justify-between transition-all ${
-                      frozenCards.has(card.id)
-                        ? 'bg-gradient-to-br from-gray-400 to-gray-500 opacity-60'
-                        : 'bg-gradient-to-br from-[#00b388] to-[#00a99d]'
-                    }`}
-                  >
-                    {/* Frozen Badge */}
-                    {frozenCards.has(card.id) && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2 text-white">
-                          <Lock className="w-8 h-8" />
-                          <span className="font-semibold">Card Frozen</span>
-                        </div>
-                      </div>
-                    )}
+                                    {/* Card Design */}
+                  <div className="relative mx-auto w-full max-w-[360px]">
+                    <div
+                      className={`relative overflow-hidden rounded-2xl border border-white/20 px-5 py-4 h-[220px] flex flex-col justify-between transition-all ${
+                        frozenCards.has(card.id)
+                          ? 'bg-gradient-to-br from-gray-500 to-gray-600'
+                          : 'bg-gradient-to-br from-[#00b388] to-[#008080]'
+                      }`}
+                    >
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_48%)]" />
 
-                    {/* Top Section */}
-                    <div>
-                      <div className="flex items-start justify-between mb-8">
-                        <div>
-                          <span className="text-white text-sm font-medium block mb-1">Chimahub Card</span>
-                          <span className="text-white/80 text-xs uppercase tracking-wider">{cardMeta.cardType}</span>
+                      {/* Frozen Badge */}
+                      {frozenCards.has(card.id) && (
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center z-20">
+                          <div className="flex flex-col items-center gap-2 text-white">
+                            <Lock className="w-8 h-8" />
+                            <span className="font-semibold">Card Frozen</span>
+                          </div>
                         </div>
+                      )}
+
+                      <div className="relative z-10 flex items-center justify-between">
+                        <div className="w-10 h-8 rounded-md border border-white/40 bg-white/20 backdrop-blur-sm" />
                         <div className="text-right">
-                          <span className="text-white/80 text-xs">BALANCE</span>
-                          <span className="text-white text-lg font-semibold block">
-                            {new Intl.NumberFormat(undefined, { style: 'currency', currency: cardMeta.currency }).format(cardMeta.balance)}
-                          </span>
+                          <p className="text-[11px] font-semibold tracking-[0.2em] text-white">VISA</p>
+                          <p className="text-[10px] text-white/80 uppercase tracking-wider">{cardMeta.cardType}</p>
                         </div>
                       </div>
 
                       {/* Card Number */}
-                      <div className="mb-6">
-                        <p className="text-white/80 text-xs mb-2 uppercase tracking-wider">Card Number</p>
+                      <div className="relative z-10 mt-2">
+                        <p className="text-white/80 text-[10px] mb-1 uppercase tracking-widest">Card Number</p>
                         <div className="flex items-center gap-2">
-                          <p className="text-white text-lg font-mono tracking-widest">
+                          <p className="text-white text-base sm:text-lg font-mono tracking-[0.18em] leading-none">
                             {visibleCardNumbers.has(card.id)
                               ? formatCardNumber(card.card_number)
                               : maskCardNumber(card.card_number)}
                           </p>
                           <button
                             onClick={() => toggleCardNumberVisibility(card.id)}
-                            className="text-white/60 hover:text-white transition-colors"
+                            className="text-white/70 hover:text-white transition-colors"
                             title={visibleCardNumbers.has(card.id) ? 'Hide card number' : 'Show card number'}
                           >
                             {visibleCardNumbers.has(card.id) ? (
@@ -396,101 +404,110 @@ export default function Cards() {
                           </button>
                           <button
                             onClick={() => copyToClipboard(card.card_number, card.id)}
-                            className="text-white/60 hover:text-white transition-colors"
+                            className="text-white/70 hover:text-white transition-colors"
                             title="Copy card number"
                           >
                             <Copy className="w-4 h-4" />
                           </button>
                         </div>
                         {copiedCardId === card.id && (
-                          <p className="text-white text-xs mt-1">✓ Copied!</p>
+                          <p className="text-white text-xs mt-1">Copied</p>
                         )}
                       </div>
-                    </div>
 
-                    {/* Bottom Section */}
-                    <div>
-                      <div className="grid grid-cols-2 gap-4 mb-4">
+                      {/* Bottom Section */}
+                      <div className="relative z-10 grid grid-cols-3 gap-3 text-[11px]">
                         <div>
-                          <p className="text-white/80 text-xs uppercase tracking-wider mb-1">Expires</p>
+                          <p className="text-white/75 uppercase tracking-widest text-[10px]">Expires</p>
                           <p className="text-white font-mono font-semibold">{card.expiry_date}</p>
                         </div>
+                        <div>
+                          <p className="text-white/75 uppercase tracking-widest text-[10px]">CVV</p>
+                          <p className="text-white font-mono font-semibold">{card.cvv}</p>
+                        </div>
                         <div className="text-right">
-                          <p className="text-white/80 text-xs uppercase tracking-wider mb-1">Daily Limit</p>
-                          <p className="text-white text-sm font-semibold">${card.daily_limit?.toLocaleString() || '5,000'}</p>
+                          <p className="text-white/75 uppercase tracking-widest text-[10px]">Holder</p>
+                          <p className="text-white font-semibold truncate">{user?.name || 'CHIME USER'}</p>
                         </div>
                       </div>
-
-                      {/* Cardholder name */}
-                      <p className="text-white/80 text-xs uppercase tracking-wider mb-1">Cardholder</p>
-                      <p className="text-white font-semibold">{user?.name || 'CHIME USER'}</p>
                     </div>
+
+                    {/* Card Actions */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: (index * 0.1) + 0.2 }}
+                      className="mt-4 grid grid-cols-2 gap-3"
+                    >
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => toggleFreezeCard(card.id)}
+                        className={`flex items-center justify-center gap-2 p-3 rounded-lg font-semibold transition-colors ${
+                          frozenCards.has(card.id)
+                            ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                            : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        }`}
+                      >
+                        {frozenCards.has(card.id) ? (
+                          <>
+                            <Unlock className="w-4 h-4" />
+                            Unfreeze
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-4 h-4" />
+                            Freeze
+                          </>
+                        )}
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center justify-center gap-2 p-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-semibold transition-colors"
+                        disabled
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </motion.button>
+                    </motion.div>
                   </div>
 
-                  {/* Card Actions */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: (index * 0.1) + 0.2 }}
-                    className="mt-4 grid grid-cols-2 gap-3"
-                  >
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => toggleFreezeCard(card.id)}
-                      className={`flex items-center justify-center gap-2 p-3 rounded-lg font-semibold transition-colors ${
-                        frozenCards.has(card.id)
-                          ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                          : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                      }`}
-                    >
-                      {frozenCards.has(card.id) ? (
-                        <>
-                          <Unlock className="w-4 h-4" />
-                          Unfreeze
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-4 h-4" />
-                          Freeze
-                        </>
-                      )}
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="flex items-center justify-center gap-2 p-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-semibold transition-colors"
-                      disabled
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </motion.button>
-                  </motion.div>
-                </div>
-
-                {/* Card Details */}
-                <Card className="mt-4 p-4">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Card ID</span>
-                      <span className="font-mono text-xs">{card.id}</span>
+                  {/* Card Details */}
+                  <Card className={`mt-4 p-4 ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">App</span>
+                        <span className="font-medium">Chimahub</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Available Balance</span>
+                        <span className="font-semibold tabular-nums">{formatMoney(cardMeta.balance, cardMeta.currency)}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Daily Limit</span>
+                        <span className="text-xs font-semibold">{formatMoney(Number(card.daily_limit || 5000), cardMeta.currency)}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Issued</span>
+                        <span className="text-xs">{card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Linked Account</span>
+                        <span className="text-xs font-mono">{cardMeta.accountNumber || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Card ID</span>
+                        <span className="font-mono text-xs break-all text-right">{card.id}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-3">
+                        <span className="text-muted-foreground">Status</span>
+                        <span className={`text-xs font-semibold ${card.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-600'}`}>
+                          {card.status}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Issued</span>
-                      <span className="text-xs">{card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Linked Account</span>
-                      <span className="text-xs font-mono">{cardMeta.accountNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Status</span>
-                      <span className={`text-xs font-semibold ${card.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-600'}`}>
-                        {card.status}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
               </motion.div>
               );
             })}
@@ -500,4 +517,6 @@ export default function Cards() {
     </div>
   );
 }
+
+
 

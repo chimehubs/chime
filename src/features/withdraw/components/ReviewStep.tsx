@@ -1,32 +1,32 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { CheckCircle2, Clock } from 'lucide-react';
 import { Button } from '../../../app/components/ui/button';
 import { fadeUpVariants } from '../../landing/animations';
 import { WithdrawalMethod } from '../types';
+import { BankDetailsInput } from '../validation';
 
 interface ReviewStepProps {
   amount: number;
   method: WithdrawalMethod;
   fee: number;
   estimatedArrival: string;
+  bankDetails: BankDetailsInput | null;
   onConfirm: () => void;
   onBack: () => void;
   isLoading: boolean;
-  evidenceFile: File | null;
-  onEvidenceChange: (file: File | null) => void;
 }
 
 const methodLabels: Record<WithdrawalMethod, string> = {
   'linked-bank': 'Linked Bank Account',
   'external-bank': 'External Bank Account',
-  'debit-card': 'Debit Card',
 };
 
-const methodDescriptions: Record<WithdrawalMethod, string> = {
-  'linked-bank': 'Your primary linked bank account',
-  'external-bank': 'External bank account provided',
-  'debit-card': 'Your registered debit card',
+const maskAccountNumber = (accountNumber: string) => {
+  if (!accountNumber) return 'N/A';
+  const trimmed = accountNumber.trim();
+  if (trimmed.length <= 4) return trimmed;
+  return `${'*'.repeat(trimmed.length - 4)}${trimmed.slice(-4)}`;
 };
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
@@ -34,11 +34,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   method,
   fee,
   estimatedArrival,
+  bankDetails,
   onConfirm,
   onBack,
   isLoading,
-  evidenceFile,
-  onEvidenceChange,
 }) => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -60,13 +59,11 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         </p>
       </div>
 
-      {/* Summary Card */}
       <motion.div
         whileHover={{ y: -4 }}
         className="bg-gradient-to-br from-white to-[#e6f9f4]/30 border-2 border-[#00b388]/30 rounded-lg p-8 shadow-md"
       >
         <div className="space-y-6">
-          {/* Amount */}
           <div className="flex justify-between items-center pb-6 border-b border-gray-200">
             <span className="text-charcoal-700 font-medium">Withdrawal Amount</span>
             <span className="text-3xl font-bold text-charcoal-900">
@@ -74,7 +71,6 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </span>
           </div>
 
-          {/* Fee */}
           <div className="flex justify-between items-center pb-6 border-b border-gray-200">
             <span className="text-charcoal-700 font-medium">Processing Fee</span>
             <span className="text-xl font-semibold text-green-600">
@@ -82,7 +78,6 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </span>
           </div>
 
-          {/* Total */}
           <div className="flex justify-between items-center pb-6 border-b-2 border-[#00b388]/30 bg-[#e6f9f4]/50 -m-8 mb-0 px-8 py-6">
             <span className="text-charcoal-900 font-bold">Total</span>
             <span className="text-2xl font-bold text-charcoal-900">
@@ -90,25 +85,40 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </span>
           </div>
 
-          {/* Destination */}
           <div className="pt-4">
             <p className="text-charcoal-700 font-medium mb-2">Destination</p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-3">
               <div className="w-3 h-3 rounded-full bg-[#00b388]" />
               <div>
-                <p className="font-semibold text-charcoal-900">
-                  {methodLabels[method]}
-                </p>
-                <p className="text-sm text-charcoal-600">
-                  {methodDescriptions[method]}
-                </p>
+                <p className="font-semibold text-charcoal-900">{methodLabels[method]}</p>
+                <p className="text-sm text-charcoal-600">Funds are routed to the recipient bank details below</p>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-charcoal-600">Bank Name</span>
+                <span className="font-medium text-charcoal-900 text-right">{bankDetails?.bankName || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-charcoal-600">Account Name</span>
+                <span className="font-medium text-charcoal-900 text-right">{bankDetails?.accountName || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-charcoal-600">Account Number</span>
+                <span className="font-mono text-charcoal-900 text-right">{maskAccountNumber(bankDetails?.accountNumber || '')}</span>
+              </div>
+              {bankDetails?.remark ? (
+                <div className="flex justify-between gap-3">
+                  <span className="text-charcoal-600">Remark</span>
+                  <span className="text-charcoal-900 text-right">{bankDetails.remark}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* Estimated Arrival */}
       <motion.div
         whileHover={{ y: -2 }}
         className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3"
@@ -117,19 +127,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         <div>
           <p className="font-semibold text-blue-900">Estimated Arrival</p>
           <p className="text-sm text-blue-700">
-            Funds should arrive by{' '}
-            <strong>
-              {new Date(estimatedArrival).toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </strong>
+            Withdrawal confirmation is instant, and destination credit reflects in less than 1 minute.
+          </p>
+          <p className="text-xs text-blue-700 mt-1">
+            Requested at {new Date(estimatedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
       </motion.div>
 
-      {/* Terms Checkbox */}
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -139,34 +144,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           className="w-5 h-5 mt-1 accent-[#00b388]"
         />
         <label htmlFor="terms" className="text-sm text-charcoal-700">
-          I confirm this withdrawal request and understand that funds will be
-          transferred to the destination specified above. I also confirm that I
-          am the account holder.
+          I confirm this withdrawal request and verify that the recipient bank details are correct.
         </label>
       </div>
 
-      {/* Evidence Upload (Optional) */}
-      <motion.div
-        whileHover={{ y: -2 }}
-        className="bg-white border border-gray-200 rounded-lg p-4"
-      >
-        <p className="text-sm font-semibold text-charcoal-900 mb-2">Upload Evidence (Optional)</p>
-        <p className="text-xs text-charcoal-600 mb-3">
-          If you have a receipt or transfer proof, upload it here for faster processing.
-        </p>
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={(e) => onEvidenceChange(e.target.files?.[0] || null)}
-          className="block w-full text-sm"
-          title="Upload withdrawal evidence"
-        />
-        {evidenceFile && (
-          <p className="mt-2 text-xs text-charcoal-700">Selected: {evidenceFile.name}</p>
-        )}
-      </motion.div>
-
-      {/* Security Notice */}
       <motion.div
         whileHover={{ y: -2 }}
         className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3"
@@ -174,17 +155,11 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
         <div>
           <p className="text-sm font-medium text-green-900">
-            🔒 Your withdrawal is protected by:
+            Your withdrawal is protected by encryption and real-time risk monitoring.
           </p>
-          <ul className="text-xs text-green-800 mt-2 space-y-1">
-            <li>✓ Multi-layer encryption</li>
-            <li>✓ Fraud detection monitoring</li>
-            <li>✓ Real-time transaction logging</li>
-          </ul>
         </div>
       </motion.div>
 
-      {/* Action Buttons */}
       <div className="flex gap-4 pt-6">
         <Button
           onClick={onBack}

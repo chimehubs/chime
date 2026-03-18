@@ -6,6 +6,7 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
+import TransactionDetailsModal from './TransactionDetailsModal';
 
 export default function Activity() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function Activity() {
   const [showAccountCreationPrompt, setShowAccountCreationPrompt] = useState(false);
   const [showAccountCreationModal, setShowAccountCreationModal] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Check if user needs to create account
@@ -181,7 +183,8 @@ export default function Activity() {
                   darkMode
                     ? 'bg-[#161b22] border-[#21262d] hover:border-[#30363d]'
                     : 'bg-white border-border hover:border-gray-300'
-                }`}
+                } cursor-pointer`}
+                onClick={() => setSelectedTransaction(transaction)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -239,6 +242,13 @@ export default function Activity() {
       >
         <Home className="w-6 h-6" />
       </motion.button>
+
+      <TransactionDetailsModal
+        isOpen={!!selectedTransaction}
+        transaction={selectedTransaction}
+        fallbackCurrency={user?.currency || 'USD'}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </div>
   );
 }

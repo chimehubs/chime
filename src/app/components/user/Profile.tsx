@@ -289,13 +289,14 @@ export default function Profile() {
 
               <div>
                 <Label htmlFor="email" className="text-sm font-medium mb-2 block">Email Address</Label>
-                <div className={`flex items-center gap-2 h-12 ${darkMode ? 'bg-[#161b22]' : 'bg-[#f0f0f0]'} border-0 rounded-lg px-3 shadow-sm`}>
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  <div className={`flex-1 text-sm ${darkMode ? 'text-[#e8eaed]' : 'text-gray-600'} cursor-not-allowed`}>
+                <div className={`flex items-start gap-2 min-h-12 ${darkMode ? 'bg-[#161b22]' : 'bg-[#f0f0f0]'} border-0 rounded-lg px-3 py-3 shadow-sm`}>
+                  <Mail className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className={`flex-1 min-w-0 text-sm ${darkMode ? 'text-[#e8eaed]' : 'text-gray-600'} cursor-not-allowed break-all leading-tight`}>
                     {user?.email || 'Not set'}
                   </div>
-                  <span className={`text-xs ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>(Read-only)</span>
+                  <span className={`hidden sm:inline text-xs whitespace-nowrap ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>(Read-only)</span>
                 </div>
+                <p className={`mt-1 text-xs sm:hidden ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>(Read-only)</p>
               </div>
 
               <div>

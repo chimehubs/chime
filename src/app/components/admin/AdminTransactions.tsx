@@ -230,7 +230,7 @@ export default function AdminTransactions() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <Card>
+          <Card className="overflow-hidden">
             <div className="divide-y divide-border">
               {filteredLog.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
@@ -243,9 +243,9 @@ export default function AdminTransactions() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="p-6 hover:bg-muted/50 transition-colors"
+                    className="p-6 hover:bg-muted/50 transition-colors overflow-x-hidden"
                   >
-                    <div className="flex items-start gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
                       {/* Icon */}
                       <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground mt-1">
                         {getActivityIcon(log.type)}
@@ -253,7 +253,7 @@ export default function AdminTransactions() {
 
                       {/* Main Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2 min-w-0">
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-semibold text-sm">{log.action}</h3>
@@ -264,24 +264,24 @@ export default function AdminTransactions() {
                                 {getTypeLabel(log.type)}
                               </Badge>
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">{log.description}</p>
+                            <p className="text-sm text-muted-foreground mt-1 break-words">{log.description}</p>
                           </div>
-                          <div className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                          <div className="text-xs text-muted-foreground break-words sm:whitespace-nowrap sm:ml-4">
                             {log.timestamp}
                           </div>
                         </div>
 
                         {/* Actor Info */}
-                        <div className="flex items-center gap-2 mb-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-2 mb-3 text-sm min-w-0">
                           <User className="w-3 h-3 text-muted-foreground" />
-                          <span className="font-medium">{log.actor}</span>
+                          <span className="font-medium break-words">{log.actor}</span>
                           <span className="text-xs bg-muted px-2 py-1 rounded">
                             {log.actorType === 'admin' ? 'Admin' : 'User'}
                           </span>
                         </div>
 
                         {/* Details */}
-                        <div className="bg-muted/30 p-3 rounded text-xs text-muted-foreground font-mono">
+                        <div className="bg-muted/30 p-3 rounded text-xs text-muted-foreground font-mono whitespace-pre-wrap break-all">
                           {log.details}
                         </div>
                       </div>

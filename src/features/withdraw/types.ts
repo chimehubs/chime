@@ -1,16 +1,26 @@
-export type WithdrawalMethod = 'linked-bank' | 'external-bank' | 'debit-card';
+export type WithdrawalMethod = 'linked-bank' | 'external-bank';
 export type WithdrawalStatus = 'pending' | 'completed' | 'failed' | 'processing';
 
 export interface BankDetails {
   accountName: string;
   accountNumber: string;
   bankName: string;
+  remark?: string;
   saveAsDefault?: boolean;
+}
+
+export interface LinkedBankAccount {
+  id: string;
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  createdAt?: string;
 }
 
 export interface WithdrawalRequest {
   amount: number;
   method: WithdrawalMethod;
+  linkedAccountId?: string;
   bankDetails?: BankDetails;
 }
 
@@ -40,4 +50,6 @@ export interface WithdrawLimits {
   withdrawableBalance: number;
   dailyLimit: number;
   dailyWithdrawn: number;
+  pendingWithdrawals: number;
+  pendingWithdrawalAmount: number;
 }
