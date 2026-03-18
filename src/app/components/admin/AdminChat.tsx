@@ -19,6 +19,16 @@ type ThreadRow = {
   unreadCount: number;
 };
 
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
+
+function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(ext)) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(attachmentUrl || '');
+}
+
 export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const [view, setView] = useState<'list' | 'chat'>('list');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -26,8 +36,12 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ url: string; name?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -113,11 +127,21 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '40px';
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 40), 150);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
+  }, [input]);
+
   const handleSelectThread = async (row: ThreadRow) => {
     setSelectedThread(row);
     setView('chat');
     const threadMessages = await supabaseDbService.getChatMessages(row.thread.id);
     setMessages(threadMessages);
+    setInput('');
     await supabaseDbService.markThreadReadByAdmin(row.thread.id);
     setThreads((prev) =>
       prev.map((item) => (item.thread.id === row.thread.id ? { ...item, unreadCount: 0 } : item))
@@ -125,36 +149,46 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !selectedThread) return;
-    await supabaseDbService.sendChatMessage({
-      thread_id: selectedThread.thread.id,
-      user_id: selectedThread.thread.user_id,
-      sender_type: 'admin',
-      message: input.trim(),
-      attachment_url: null,
-      read: false,
-    });
-    setInput('');
+    if (!input.trim() || !selectedThread || isSending) return;
+    setIsSending(true);
+    try {
+      await supabaseDbService.sendChatMessage({
+        thread_id: selectedThread.thread.id,
+        user_id: selectedThread.thread.user_id,
+        sender_type: 'admin',
+        message: input.trim(),
+        attachment_url: null,
+        read: false,
+      });
+      setInput('');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedThread) return;
+    if (!selectedThread || isUploading) return;
     const files = e.target.files;
     if (files && files[0]) {
+      setIsUploading(true);
       const file = files[0];
       const path = `${selectedThread.thread.user_id}/${Date.now()}-${file.name}`;
-      const url = await uploadFileToStorage('chat-attachments', path, file);
-      if (url) {
-        await supabaseDbService.sendChatMessage({
-          thread_id: selectedThread.thread.id,
-          user_id: selectedThread.thread.user_id,
-          sender_type: 'admin',
-          message: file.name,
-          attachment_url: url,
-          read: false,
-        });
+      try {
+        const url = await uploadFileToStorage('chat-attachments', path, file);
+        if (url) {
+          await supabaseDbService.sendChatMessage({
+            thread_id: selectedThread.thread.id,
+            user_id: selectedThread.thread.user_id,
+            sender_type: 'admin',
+            message: file.name,
+            attachment_url: url,
+            read: false,
+          });
+        }
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setIsUploading(false);
       }
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -169,6 +203,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const selectedProfileName = selectedThread?.profile?.name ||
     `${selectedThread?.profile?.first_name || ''} ${selectedThread?.profile?.last_name || ''}`.trim() ||
     selectedThread?.profile?.email || 'Customer';
+  const canSend = Boolean(input.trim()) && !!selectedThread && !isSending;
 
   return (
     <motion.div
@@ -311,9 +346,9 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                 messages.map((msg) => {
                   const fileName = msg.message || '';
                   const ext = (fileName.split('.').pop() || '').toLowerCase();
-                  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-                  const isVideo = ['mp4', 'mov', 'webm', 'mkv'].includes(ext);
-                  const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
+                  const isImage = isImageAttachment(fileName, msg.attachment_url);
+                  const isVideo = VIDEO_EXTENSIONS.includes(ext);
+                  const isAudio = AUDIO_EXTENSIONS.includes(ext);
                   const timestamp = msg.created_at
                     ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     : '';
@@ -330,7 +365,14 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                         {msg.attachment_url ? (
                           <div className="space-y-2">
                             {isImage && (
-                              <img src={msg.attachment_url} alt={msg.message} className="max-w-full rounded-lg max-h-96" />
+                              <button
+                                type="button"
+                                onClick={() => setImagePreview({ url: msg.attachment_url || '', name: msg.message })}
+                                className="block w-full"
+                                title="Open image"
+                              >
+                                <img src={msg.attachment_url} alt={msg.message} className="w-full rounded-lg max-h-[420px] object-contain" />
+                              </button>
                             )}
                             {isVideo && (
                               <video controls className="max-w-full rounded-lg max-h-96">
@@ -360,7 +402,14 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                         {msg.attachment_url ? (
                           <div className="space-y-2">
                             {isImage && (
-                              <img src={msg.attachment_url} alt={msg.message} className="max-w-full rounded-lg max-h-96" />
+                              <button
+                                type="button"
+                                onClick={() => setImagePreview({ url: msg.attachment_url || '', name: msg.message })}
+                                className="block w-full"
+                                title="Open image"
+                              >
+                                <img src={msg.attachment_url} alt={msg.message} className="w-full rounded-lg max-h-[420px] object-contain" />
+                              </button>
                             )}
                             {isVideo && (
                               <video controls className="max-w-full rounded-lg max-h-96">
@@ -403,28 +452,41 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isUploading}
+                  className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Upload file"
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  placeholder="Type your message..."
-                  className="flex-1 min-h-12 bg-[#f9fafb] border-0 rounded-lg px-3 text-sm shadow-sm focus:shadow-md"
-                  maxLength={1000}
-                />
+                <div className="flex-1 min-w-0">
+                  {input.trim().length > 0 && (
+                    <div className="text-xs text-muted-foreground mb-1">User is typing...</div>
+                  )}
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder="Type your message..."
+                    rows={1}
+                    maxLength={1000}
+                    className="w-full min-h-[40px] max-h-[150px] rounded-xl px-3 py-2 text-sm outline-none border resize-none bg-white/5 backdrop-blur-md border-white/10 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400/60"
+                    style={{ resize: 'none' }}
+                  />
+                </div>
                 <Button
                   onClick={sendMessage}
-                  disabled={!input.trim()}
-                  className="w-12 h-12 bg-[#00b388] hover:bg-[#009670] text-white rounded-lg disabled:opacity-50 shadow-md hover:shadow-lg"
+                  disabled={!canSend}
+                  className={`w-12 h-12 rounded-xl border transition-all duration-200 ${
+                    canSend
+                      ? 'bg-gradient-to-r from-[#00A36C] to-[#008080] border-transparent text-white shadow-md hover:brightness-110'
+                      : 'bg-slate-100 border-slate-200 text-slate-400 opacity-70'
+                  }`}
                 >
                   <Send className="w-5 h-5" />
                 </Button>
@@ -433,6 +495,27 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
           </div>
         )}
       </motion.div>
+      {imagePreview && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setImagePreview(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setImagePreview(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+            title="Close image"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={imagePreview.url}
+            alt={imagePreview.name || 'Attachment preview'}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[96vw] max-h-[88vh] w-auto h-auto rounded-xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </motion.div>
   );
 }

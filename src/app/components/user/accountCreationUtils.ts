@@ -10,7 +10,7 @@ export interface AccountCreationResult {
   updatedUser: UserProfile;
 }
 
-const getFilePath = (userId: string, file: File) => `avatars/${userId}/${Date.now()}-${file.name}`;
+const getFilePath = (userId: string, file: File) => `${userId}/${Date.now()}-${file.name}`;
 
 export async function completeAccountCreation(
   user: UserProfile,
@@ -66,7 +66,7 @@ export async function completeAccountCreation(
     name: profile?.name || fullName,
     status: 'ACTIVE',
     currency: profile?.currency || formData.currency,
-    avatar: profile?.avatar_url || user.avatar
+    avatar: profile?.avatar_url || avatarUrl || user.avatar
   } as UserProfile;
 
   return {

@@ -52,6 +52,7 @@ export default function AdminUsers() {
   const [transferMessage, setTransferMessage] = useState('');
   const [fundError, setFundError] = useState('');
   const [fundSuccess, setFundSuccess] = useState('');
+  const [isFunding, setIsFunding] = useState(false);
   const [adminPrefs, setAdminPrefs] = useState<Record<string, any>>({});
 
   React.useEffect(() => {
@@ -179,58 +180,77 @@ export default function AdminUsers() {
       return;
     }
 
-    const userCurrency = selectedUser.profile.currency || 'USD';
-    const numAmount = parseFloat(fundAmount);
-    const currencySymbol = getCurrencySymbol(userCurrency);
-    const newBalanceValue = (selectedUser.balanceValue || 0) + numAmount;
-    const formattedBalance = `${currencySymbol}${newBalanceValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    setIsFunding(true);
+    try {
+      const userCurrency = selectedUser.profile.currency || 'USD';
+      const numAmount = parseFloat(fundAmount);
+      const currencySymbol = getCurrencySymbol(userCurrency);
+      const newBalanceValue = (selectedUser.balanceValue || 0) + numAmount;
+      const formattedBalance = `${currencySymbol}${newBalanceValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-    const transactionId = `TXN-${Date.now()}`;
-    await supabaseDbService.createTransaction({
-      user_id: selectedUser.profile.id,
-      account_id: selectedUser.account.id,
-      type: 'credit',
-      amount: numAmount,
-      description: `Admin funding from ${senderName}`,
-      currency: userCurrency,
-      status: 'completed',
-    });
-    await supabaseDbService.createActivity({
-      user_id: selectedUser.profile.id,
-      type: 'credit',
-      description: 'Account funded by admin',
-      amount: numAmount,
-    });
-    await supabaseDbService.createNotification({
-      user_id: selectedUser.profile.id,
-      title: 'Credit Alert: Account Funded',
-      message: `Your account has been credited with ${currencySymbol}${numAmount.toFixed(2)}. New balance: ${formattedBalance}`,
-      type: 'credit',
-      read: false,
-      path: '/activity',
-    });
+      const transactionId = `TXN-${Date.now()}`;
+      const tx = await supabaseDbService.createTransaction({
+        user_id: selectedUser.profile.id,
+        account_id: selectedUser.account.id,
+        type: 'credit',
+        amount: numAmount,
+        description: `Admin funding from ${senderName}`,
+        currency: userCurrency,
+        status: 'completed',
+      });
+      if (!tx) {
+        setFundError('Failed to fund account. Please verify admin permissions and try again.');
+        return;
+      }
 
-    const updatedUsers = users.map(u =>
-      u.profile.id === selectedUser.profile.id
-        ? { ...u, balanceValue: newBalanceValue, balance: formattedBalance }
-        : u
-    );
-    setUsers(updatedUsers);
-    setSelectedUser(updatedUsers.find(u => u.profile.id === selectedUser.profile.id) || null);
+      const activity = await supabaseDbService.createActivity({
+        user_id: selectedUser.profile.id,
+        type: 'credit',
+        description: 'Account funded by admin',
+        amount: numAmount,
+      });
+      if (!activity) {
+        setFundError('Funding created but activity log failed. Please refresh.');
+      }
 
-    setFundSuccess(`✓ Successfully funded ${currencySymbol}${numAmount.toFixed(2)} to ${selectedUser.profile.name || selectedUser.profile.email}. Credit notification has been sent to their account. Transaction ID: ${transactionId}`);
+      const notification = await supabaseDbService.createNotification({
+        user_id: selectedUser.profile.id,
+        title: 'Credit Alert: Account Funded',
+        message: `Your account has been credited with ${currencySymbol}${numAmount.toFixed(2)}. New balance: ${formattedBalance}`,
+        type: 'credit',
+        read: false,
+        path: '/activity',
+      });
+      if (!notification) {
+        setFundError('Funding created but notification failed. Please refresh.');
+      }
 
-    setTimeout(() => {
-      setFundAmount('');
-      setSenderName('');
-      setSenderBank('');
-      setSenderAccountNumber('');
-      setRoutingNumber('');
-      setTransferMessage('');
-      setFundingMethod('bank_transfer');
-      setShowFundModal(false);
-      setFundSuccess('');
-    }, 3000);
+      const updatedUsers = users.map(u =>
+        u.profile.id === selectedUser.profile.id
+          ? { ...u, balanceValue: newBalanceValue, balance: formattedBalance }
+          : u
+      );
+      setUsers(updatedUsers);
+      setSelectedUser(updatedUsers.find(u => u.profile.id === selectedUser.profile.id) || null);
+
+      setFundSuccess(`Successfully funded ${currencySymbol}${numAmount.toFixed(2)} to ${selectedUser.profile.name || selectedUser.profile.email}. Credit notification has been sent to their account. Transaction ID: ${transactionId}`);
+
+      setTimeout(() => {
+        setFundAmount('');
+        setSenderName('');
+        setSenderBank('');
+        setSenderAccountNumber('');
+        setRoutingNumber('');
+        setTransferMessage('');
+        setFundingMethod('bank_transfer');
+        setShowFundModal(false);
+        setFundSuccess('');
+      }, 3000);
+    } catch (err) {
+      setFundError(err instanceof Error ? err.message : 'Failed to fund account. Please try again.');
+    } finally {
+      setIsFunding(false);
+    }
   };
 
   const totalUsers = users.length;
@@ -722,11 +742,11 @@ export default function AdminUsers() {
               </button>
               <button
                 onClick={handleFundUser}
-                disabled={!fundAmount || !senderName}
+                disabled={!fundAmount || !senderName || isFunding}
                 className="flex-1 px-4 py-2 bg-[#00b388] text-white rounded-lg hover:bg-[#009670] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm flex items-center justify-center gap-2"
               >
                 <Send className="w-4 h-4" />
-                Send Funds
+                {isFunding ? 'Sending...' : 'Send Funds'}
               </button>
             </div>
           </motion.div>
@@ -736,4 +756,5 @@ export default function AdminUsers() {
     </AdminLayout>
   );
 }
+
 

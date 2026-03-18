@@ -6,7 +6,6 @@ import {
   Eye,
   EyeOff,
   Plus,
-  Send,
   Receipt,
   PiggyBank,
   Sun,
@@ -58,6 +57,20 @@ export default function Dashboard() {
   const [spendingLastWeek, setSpendingLastWeek] = useState(0);
   const [incomeThisWeek, setIncomeThisWeek] = useState(0);
   const [expensesThisWeek, setExpensesThisWeek] = useState(0);
+  const [greeting, setGreeting] = useState('Welcome');
+
+  useEffect(() => {
+    const computeGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour < 12) return 'Good morning';
+      if (hour < 17) return 'Good afternoon';
+      if (hour < 21) return 'Good evening';
+      return 'Good night';
+    };
+    setGreeting(computeGreeting());
+    const interval = setInterval(() => setGreeting(computeGreeting()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (user?.role === 'user' && user.status === 'UNREGISTERED') {
@@ -78,8 +91,11 @@ export default function Dashboard() {
       if (profile?.preferences?.darkMode !== undefined) {
         setDarkMode(!!profile.preferences.darkMode);
       }
-      if (profile?.preferences?.onboardingSeen !== true) {
+      const status = (profile?.status || user?.status || '').toString().toUpperCase();
+      if (status === 'ACTIVE' && profile?.preferences?.onboardingSeen !== true) {
         setShowOnboarding(true);
+      } else {
+        setShowOnboarding(false);
       }
       if (profile) {
         updateUser({
@@ -91,7 +107,7 @@ export default function Dashboard() {
       }
     };
     loadProfilePrefs();
-  }, [user?.id]);
+  }, [user?.id, user?.status]);
 
   // Handle "Create Account" button click on the prompt
   const handleStartAccountCreation = () => {
@@ -250,6 +266,12 @@ export default function Dashboard() {
     }
   }, [user?.id, user?.status, transactions]);
 
+  const formatBalance = (value: number) => {
+    const code = user?.currency || 'USD';
+    const formatted = formatCurrency(value, code);
+    return code === 'USD' ? formatted.replace(/^US\$/, '$') : formatted;
+  };
+
   const renderContent = () => {
     if (currentView === 'home') {
       return (
@@ -261,34 +283,29 @@ export default function Dashboard() {
             transition={{ duration: 0.5 }}
             data-tour="balance"
           >
-            <Card className="p-6 bg-gradient-to-br from-[#00b388] via-[#00a99d] to-[#008b77] border-0 shadow-xl shadow-[#00b388]/30 overflow-hidden relative">
-              {/* Background pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full blur-2xl" />
-              </div>
-              <div className="relative z-10">
+            <Card className="p-6 bg-card border border-border shadow-sm relative">
+<div className="relative z-10">
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <p className="text-white/80 text-sm mb-1">Available Balance {userAccounts.length > 0 ? `(${userAccounts[0]?.account_number})` : ''}</p>
+                  <p className="text-muted-foreground text-sm mb-1">Available Balance {userAccounts.length > 0 ? `(${userAccounts[0]?.account_number})` : ''}</p>
                   <div className="flex items-center gap-3">
                     {balanceVisible ? (
                       <motion.h2
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="text-4xl text-white tracking-tight font-semibold tabular-nums"
+                        className="text-4xl text-foreground tracking-tight font-semibold tabular-nums"
                       >
-                        {formatCurrency(balance, user?.currency || 'USD')}
+                        {formatBalance(balance)}
                       </motion.h2>
                     ) : (
-                      <h2 className="text-4xl text-white tracking-tight font-semibold">
+                      <h2 className="text-4xl text-foreground tracking-tight font-semibold">
                         ••••••
                       </h2>
                     )}
                     <button
                       onClick={() => setBalanceVisible(!balanceVisible)}
                       title={balanceVisible ? 'Hide balance' : 'Show balance'}
-                      className="text-white/80 hover:text-white transition-colors"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {balanceVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -298,17 +315,17 @@ export default function Dashboard() {
                   <button
                     onClick={() => setShowHistoryModal(true)}
                     title="View transaction history"
-                    className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors shadow-md hover:shadow-lg"
+                    className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-white/30 transition-colors shadow-sm hover:shadow-md"
                   >
-                    <History className="w-5 h-5 text-white" />
+                    <History className="w-5 h-5 text-foreground" />
                   </button>
-                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-foreground" />
                   </div>
                 </div>
               </div>
 
-                <div className="flex items-center gap-2 text-white/90 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
                   <ArrowUpRight className="w-4 h-4" />
                   <span>+12.5% this month</span>
                 </div>
@@ -326,14 +343,14 @@ export default function Dashboard() {
             <h3 className="text-sm mb-4 text-muted-foreground font-medium">Quick Actions</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { icon: Plus, label: 'Add', color: '#00b388', bgColor: '#e6f9f4', path: '/add-money', soon: false },
-                { icon: Send, label: 'Send', color: '#6366f1', bgColor: '#eef2ff', path: '/send-money', soon: false },
-                { icon: CreditCard, label: 'Cards', color: '#ec4899', bgColor: '#fce7f3', path: '/dashboard/cards', soon: false },
-                { icon: PiggyBank, label: 'Save', color: '#00a99d', bgColor: '#d4f5f1', path: '/savings', soon: false },
-                { icon: Banknote, label: 'Pay Bills', color: '#f59e0b', bgColor: '#fef3c7', path: null, soon: true },
-                { icon: Dice5, label: 'Betting', color: '#ec4899', bgColor: '#fce7f3', path: null, soon: true },
-                { icon: Gift, label: 'Cashback', color: '#10b981', bgColor: '#d1fae5', path: null, soon: true },
-                { icon: Landmark, label: 'Loan', color: '#8b5cf6', bgColor: '#ede9fe', path: null, soon: true }
+                { icon: Plus, label: 'Add', color: '#0f766e', bgColor: '#f1f5f9', path: '/add-money', soon: false },
+                { icon: ArrowDownRight, label: 'Withdraw', color: '#0f766e', bgColor: '#f1f5f9', path: '/dashboard/withdraw', soon: false },
+                { icon: CreditCard, label: 'Cards', color: '#475569', bgColor: '#f1f5f9', path: '/dashboard/cards', soon: false },
+                { icon: PiggyBank, label: 'Save', color: '#475569', bgColor: '#f1f5f9', path: '/savings', soon: false },
+                { icon: Banknote, label: 'Pay Bills', color: '#64748b', bgColor: '#f1f5f9', path: null, soon: true },
+                { icon: Dice5, label: 'Betting', color: '#475569', bgColor: '#f1f5f9', path: null, soon: true },
+                { icon: Gift, label: 'Cashback', color: '#64748b', bgColor: '#f1f5f9', path: null, soon: true },
+                { icon: Landmark, label: 'Loan', color: '#64748b', bgColor: '#f1f5f9', path: null, soon: true }
               ].map((action, index) => (
                 <motion.button
                   key={action.label}
@@ -347,7 +364,7 @@ export default function Dashboard() {
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-xl bg-card border shadow-md transition-all ${
                     action.soon 
                       ? 'border-border opacity-60 cursor-not-allowed' 
-                      : 'border-border hover:border-[#00b388]/20 hover:shadow-lg'
+                      : 'border-border hover:border-slate-200 hover:shadow-lg'
                   }`}
                 >
                   {/* SOON Badge */}
@@ -356,7 +373,7 @@ export default function Dashboard() {
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ delay: 0.1 + index * 0.05 + 0.2 }}
-                      className="absolute -top-2 -right-2 bg-gradient-to-r from-orange-400 to-red-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg"
+                      className="absolute -top-2 -right-2 bg-slate-700 text-white/90 text-xs font-semibold px-2 py-1 rounded-full shadow-lg"
                     >
                       SOON
                     </motion.div>
@@ -396,24 +413,24 @@ export default function Dashboard() {
                     {pendingTx.slice(0, 3).map((tx) => (
                       <Card
                         key={tx.id}
-                        className="p-4 border-l-4 border-l-[#00b388] hover:shadow-md hover:bg-[#f0fdf4] transition-all cursor-pointer"
+                        className="p-4 border-l-4 border-l-slate-300 hover:shadow-md hover:bg-muted/40 transition-all cursor-pointer"
                         onClick={() => navigate('/activity')}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#e6f9f4] flex items-center justify-center">
-                                {tx.type === 'credit' ? <Plus className="w-5 h-5 text-[#00b388]" /> : <Send className="w-5 h-5 text-[#00b388]" />}
+                              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                                {tx.type === 'credit' ? <Plus className="w-5 h-5 text-slate-600" /> : <ArrowDownRight className="w-5 h-5 text-slate-600" />}
                               </div>
                               <div>
-                                <p className="font-medium capitalize">{tx.type === 'credit' ? 'Add Money' : 'Send Money'} - Pending</p>
+                                <p className="font-medium capitalize">{tx.type === 'credit' ? 'Add Money' : 'Withdraw'} - Pending</p>
                                 <p className="text-xs text-muted-foreground">{tx.description}</p>
                               </div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-[#00b388]">{formatCurrency(Math.abs(Number(tx.amount)), tx.currency || user?.currency || 'USD')}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{tx.type === 'credit' ? 'funding' : 'transfer'}</p>
+                            <p className="font-semibold text-foreground">{formatCurrency(Math.abs(Number(tx.amount)), tx.currency || user?.currency || 'USD')}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{tx.type === 'credit' ? 'funding' : 'withdrawal'}</p>
                           </div>
                         </div>
                       </Card>
@@ -431,14 +448,14 @@ export default function Dashboard() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <h3 className="text-sm mb-4 text-muted-foreground font-medium">Spending Insights</h3>
-            <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-0 shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="p-6 bg-card border border-border shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-sm text-muted-foreground font-medium">This Week</p>
                   <motion.p 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-3xl mt-2 font-bold bg-gradient-to-r from-[#00b388] to-[#00a99d] bg-clip-text text-transparent"
+                    className="text-3xl mt-2 font-semibold text-foreground"
                   >
                     ${spendingThisWeek.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                   </motion.p>
@@ -450,7 +467,7 @@ export default function Dashboard() {
                 >
                   {spendingLastWeek > 0 ? (
                     <>
-                      <div className={`flex items-center gap-1 text-sm mb-2 px-3 py-1 rounded-full w-fit ml-auto ${spendingThisWeek < spendingLastWeek ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                      <div className="flex items-center gap-1 text-sm mb-2 px-3 py-1 rounded-full w-fit ml-auto bg-muted text-foreground">
                         {spendingThisWeek < spendingLastWeek ? (
                           <><ArrowDownRight className="w-4 h-4" /><span className="font-semibold">{Math.round(((spendingLastWeek - spendingThisWeek) / spendingLastWeek) * 100)}% less</span></>
                         ) : (
@@ -494,23 +511,23 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <motion.div 
                   whileHover={{ scale: 1.03 }}
-                  className="p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-50/50 border border-green-200/30 shadow-sm"
+                  className="p-4 rounded-lg bg-muted/40 border border-border shadow-sm"
                 >
                   <div className="text-xs text-muted-foreground font-medium mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
                     Income
                   </div>
-                  <p className="text-2xl font-bold text-green-600">${incomeThisWeek.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                  <p className="text-2xl font-semibold text-foreground">${incomeThisWeek.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
                 </motion.div>
                 <motion.div 
                   whileHover={{ scale: 1.03 }}
-                  className="p-4 rounded-lg bg-gradient-to-br from-red-50 to-red-50/50 border border-red-200/30 shadow-sm"
+                  className="p-4 rounded-lg bg-muted/40 border border-border shadow-sm"
                 >
                   <div className="text-xs text-muted-foreground font-medium mb-2 flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-red-500" />
                     Expenses
                   </div>
-                  <p className="text-2xl font-bold text-red-600">${expensesThisWeek.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                  <p className="text-2xl font-semibold text-foreground">${expensesThisWeek.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
                 </motion.div>
               </div>
             </Card>
@@ -531,7 +548,7 @@ export default function Dashboard() {
                 View All
               </button>
             </div>
-            <Card className="shadow-md hover:shadow-lg transition-shadow overflow-hidden" data-tour="recent-transactions">
+            <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden" data-tour="recent-transactions">
               {transactions.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground">
                   <p>Your recent transactions will appear here once your account is active.</p>
@@ -599,8 +616,8 @@ export default function Dashboard() {
             transition={{ duration: 0.5 }}
           >
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-20 h-20 rounded-full bg-[#e6f9f4] flex items-center justify-center">
-                <User className="w-10 h-10 text-[#00b388]" />
+              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+                <User className="w-10 h-10 text-[#0f766e]" />
               </div>
               <div>
                 <h2 className="text-2xl font-semibold">John Anderson</h2>
@@ -646,12 +663,12 @@ export default function Dashboard() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className={`text-sm ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>Good morning,</p>
+            <p className={`text-sm ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>{greeting},</p>
             <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : ''} truncate hidden sm:block`}>
-              {user?.name?.split(' ')[0] || 'User'}
+              {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
             </h1>
             <h1 className={`text-lng font-semibold ${darkMode ? 'text-white' : ''} truncate sm:hidden`}>
-              {user?.name?.split(' ')[0] || 'User'}
+              {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
             </h1>
           </div>
           <div className="flex items-center gap-3" data-tour="header-icons">
@@ -661,12 +678,12 @@ export default function Dashboard() {
               whileTap={{ scale: 0.95 }}
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 3, repeat: Infinity }}
-              className="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-md hover:shadow-lg"
-              style={{ backgroundColor: '#e3f2fd' }}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md bg-muted"
+              
               title="Customer Care Chat"
               onClick={handleNavigateToChat}
             >
-              <MessageCircle className="w-5 h-5" style={{ color: '#2196F3' }} />
+              <MessageCircle className="w-5 h-5 text-[#0f766e]" />
               {chatMessageCount > 0 && (
                 <motion.div 
                   animate={{ scale: [1, 1.2, 1] }}
@@ -686,14 +703,14 @@ export default function Dashboard() {
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 3, repeat: Infinity, delay: 0.3 }}
               onClick={handleToggleDarkMode}
-              className="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-md hover:shadow-lg"
-              style={{ backgroundColor: darkMode ? '#161b22' : '#fef3c7' }}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md bg-muted"
+              
               title="Toggle dark mode"
             >
               {darkMode ? (
-                <Moon className="w-5 h-5" style={{ color: '#fbbf24' }} />
+                <Moon className="w-5 h-5 text-muted-foreground" />
               ) : (
-                <Sun className="w-5 h-5" style={{ color: '#f59e0b' }} />
+                <Sun className="w-5 h-5 text-muted-foreground" />
               )}
             </motion.button>
             {/* Profile Icon */}
@@ -703,15 +720,15 @@ export default function Dashboard() {
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 3, repeat: Infinity, delay: 0.6 }}
               onClick={() => navigate('/profile')}
-              className="relative transition-transform shadow-md hover:shadow-lg"
+              className="relative transition-transform shadow-sm hover:shadow-md"
               title="Profile"
             >
-              <Avatar className="w-10 h-10 border-2 border-[#00b388] hover:border-[#009670]">
+              <Avatar className="w-10 h-10 border-2 border-border hover:border-muted-foreground/40">
                 <AvatarImage 
                   src={user?.avatar}
                   alt={user?.name} 
                 />
-                <AvatarFallback className="bg-gradient-to-br from-[#00b388] to-[#00a99d] text-white font-semibold">
+                <AvatarFallback className="bg-[#0f766e] text-white font-semibold">
                   {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
@@ -735,10 +752,10 @@ export default function Dashboard() {
       >
         <div className="flex items-center justify-around">
           {[
-            { icon: Home, label: 'Home', action: () => setCurrentView('home'), nav: false, color: '#FF6B6B', bgColor: '#ffe0e0' },
-            { icon: ActivityIcon, label: 'Activity', action: () => setCurrentView('activity'), nav: false, color: '#4ECDC4', bgColor: '#e0f7f6' },
-            { icon: PiggyBank, label: 'Savings', action: () => navigate('/savings'), nav: true, color: '#00a99d', bgColor: '#d4f5f1' },
-            { icon: UserCircle, label: 'Profile', action: () => navigate('/profile'), nav: true, color: '#FFB93B', bgColor: '#fff5e6' }
+            { icon: Home, label: 'Home', action: () => setCurrentView('home'), nav: false, color: '#0f766e', bgColor: '#f1f5f9' },
+            { icon: ActivityIcon, label: 'Activity', action: () => setCurrentView('activity'), nav: false, color: '#0f766e', bgColor: '#f1f5f9' },
+            { icon: PiggyBank, label: 'Savings', action: () => navigate('/savings'), nav: true, color: '#475569', bgColor: '#f1f5f9' },
+            { icon: UserCircle, label: 'Profile', action: () => navigate('/profile'), nav: true, color: '#0f766e', bgColor: '#f1f5f9' }
           ].map((item, index) => (
             <motion.button
               key={item.label}
@@ -769,9 +786,9 @@ export default function Dashboard() {
             transition={{ duration: 2.5, repeat: Infinity, delay: 1.2 }}
             className="flex flex-col items-center gap-1 transition-colors cursor-pointer p-2 rounded-lg shadow-sm hover:shadow-md"
           >
-            <motion.div style={{ backgroundColor: '#f8a5d6' }} className="w-10 h-10 rounded-lg flex items-center justify-center">
+            <motion.div style={{ backgroundColor: '#f1f5f9' }} className="w-10 h-10 rounded-lg flex items-center justify-center">
               <motion.div whileHover={{ rotate: 10, scale: 1.15 }}>
-                <CreditCard className="w-5 h-5" style={{ color: '#ec4899' }} />
+                <CreditCard className="w-5 h-5" style={{ color: '#0f766e' }} />
               </motion.div>
             </motion.div>
             <span className="text-xs font-medium">Cards</span>
@@ -830,17 +847,17 @@ export default function Dashboard() {
             className="bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col"
           >
             {/* Modal Header */}
-            <div className="sticky top-0 z-10 bg-gradient-to-br from-[#00b388] to-[#00a99d] px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <History className="w-5 h-5 text-white" />
-                <h2 className="text-lg font-semibold text-white">Transaction History</h2>
+                <History className="w-5 h-5 text-foreground" />
+                <h2 className="text-lg font-semibold text-foreground">Transaction History</h2>
               </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
                 title="Close modal"
-                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-1 hover:bg-accent rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-white" />
+                <X className="w-5 h-5 text-foreground" />
               </button>
             </div>
 
@@ -891,7 +908,7 @@ export default function Dashboard() {
             <div className="border-t border-border p-4 bg-muted/50">
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="w-full px-4 py-2 bg-[#00b388] text-white rounded-lg hover:bg-[#009670] transition-colors font-medium text-sm"
+                className="w-full px-4 py-2 bg-muted text-foreground border border-border rounded-lg hover:bg-muted/70 transition-colors font-medium text-sm"
               >
                 Close
               </button>
@@ -904,3 +921,6 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
+

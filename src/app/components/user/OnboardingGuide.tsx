@@ -38,7 +38,7 @@ export const OnboardingGuide: React.FC<OnboardingGuideProps> = ({ isOpen, onComp
     {
       id: 2,
       title: 'Quick Actions',
-      description: 'Use these buttons to quickly add money, send transfers, and save for your goals. All payments are protected by your PIN.',
+      description: 'Use these buttons to quickly add money, withdraw funds, and save for your goals. All payments are protected by your PIN.',
       target: '[data-tour="quick-actions"]',
       position: 'bottom'
     },

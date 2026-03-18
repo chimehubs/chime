@@ -21,7 +21,7 @@ interface AdminLogRow {
 
 export default function AdminTransactions() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'auth' | 'deposit' | 'transfer' | 'funding' | 'support' | 'profile'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'auth' | 'deposit' | 'withdrawal' | 'funding' | 'support' | 'profile'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'pending' | 'failed'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'oldest'>('recent');
   const [logs, setLogs] = useState<AdminLogRow[]>([]);
@@ -39,14 +39,14 @@ export default function AdminTransactions() {
       const txLogs: AdminLogRow[] = transactions.map((tx: Transaction) => {
         const profile = profileById.get(tx.user_id) as Profile | undefined;
         const actorName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || profile?.email || 'User';
-        const type = tx.type === 'credit' ? 'deposit' : 'transfer';
+        const type = tx.type === 'credit' ? 'deposit' : 'withdrawal';
         const status = tx.status === 'completed' ? 'success' : tx.status;
         const timestamp = tx.created_at ? new Date(tx.created_at).toLocaleString() : 'N/A';
         return {
           id: `TX-${tx.id}`,
           actor: actorName,
           actorType: 'user',
-          action: tx.type === 'credit' ? 'Deposit' : 'Transfer',
+          action: tx.type === 'credit' ? 'Deposit' : 'Withdrawal',
           description: tx.description || `${tx.type} transaction`,
           type,
           status,
@@ -64,13 +64,15 @@ export default function AdminTransactions() {
         const profile = profileById.get(activity.user_id) as Profile | undefined;
         const actorName = profile?.name || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || profile?.email || 'User';
         const timestamp = activity.created_at ? new Date(activity.created_at).toLocaleString() : 'N/A';
+        const rawType = activity.type || 'profile';
+        const normalizedType = rawType === 'debit' ? 'withdrawal' : rawType;
         return {
           id: `ACT-${activity.id}`,
           actor: actorName,
           actorType: 'user',
-          action: activity.type || 'Activity',
+          action: normalizedType === 'withdrawal' ? 'Withdrawal' : rawType || 'Activity',
           description: activity.description || 'User activity',
-          type: activity.type || 'profile',
+          type: normalizedType || 'profile',
           status: 'success',
           timestamp,
           details: JSON.stringify({ amount: activity.amount || 0 }),
@@ -125,7 +127,7 @@ export default function AdminTransactions() {
     switch (type) {
       case 'auth': return <LogIn className="w-4 h-4" />;
       case 'deposit': return <DollarSign className="w-4 h-4" />;
-      case 'transfer': return <DollarSign className="w-4 h-4" />;
+      case 'withdrawal': return <DollarSign className="w-4 h-4" />;
       case 'funding': return <DollarSign className="w-4 h-4" />;
       case 'support': return <MessageSquare className="w-4 h-4" />;
       case 'profile': return <User className="w-4 h-4" />;
@@ -194,7 +196,7 @@ export default function AdminTransactions() {
                 <option value="all">All Action Types</option>
                 <option value="auth">Authentication</option>
                 <option value="deposit">Deposits</option>
-                <option value="transfer">Transfers/Send Money</option>
+                <option value="withdrawal">Withdrawals</option>
                 <option value="funding">Account Funding</option>
                 <option value="support">Support/Chat</option>
                 <option value="profile">Profile Updates</option>

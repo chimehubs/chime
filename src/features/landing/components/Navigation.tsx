@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
@@ -6,6 +6,19 @@ import { Logo } from '../../../app/components/Logo';
 
 export const Navigation: React.FC = () => {
   const navigate = useNavigate();
+  const logoClickCount = useRef(0);
+
+  const handleLogoClick = () => {
+    logoClickCount.current += 1;
+
+    if (logoClickCount.current >= 5) {
+      logoClickCount.current = 0;
+      navigate('/admin');
+      return;
+    }
+
+    navigate('/');
+  };
 
   return (
     <motion.nav
@@ -19,7 +32,7 @@ export const Navigation: React.FC = () => {
         <motion.div
           whileHover={{ scale: 1.05 }}
           className="flex items-center gap-3 cursor-pointer"
-          onClick={() => navigate('/')}
+          onClick={handleLogoClick}
         >
           <div className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
             <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />

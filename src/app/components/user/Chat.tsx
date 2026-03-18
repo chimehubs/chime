@@ -1,14 +1,24 @@
 // Chat.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, User, Send, Paperclip } from 'lucide-react';
+import { ArrowLeft, User, Send, Paperclip, X } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Card } from '../ui/card';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
+import { useToast } from '../../../context/ToastProvider';
+
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
+
+function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(ext)) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(attachmentUrl || '');
+}
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -20,10 +30,19 @@ export default function Chat() {
   const [darkMode, setDarkMode] = useState(false);
   const [hasExistingMessages, setHasExistingMessages] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ url: string; name?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasRunAnimation = useRef(false);
   const welcomeMessage = 'Hello! Welcome to Chimahub customer support. How can we assist you today?';
+  const { addToast } = useToast();
+
+  const appendMessage = useCallback((msg: ChatMessage) => {
+    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+  }, []);
 
   // Determine where to go back to
   const getBackPath = () => {
@@ -77,7 +96,7 @@ export default function Chat() {
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
         (payload) => {
           const msg = payload.new as ChatMessage;
-          setMessages((prev) => [...prev, msg]);
+          appendMessage(msg);
           setHasExistingMessages(true);
         }
       )
@@ -89,39 +108,88 @@ export default function Chat() {
   }, [threadId]);
 
   useEffect(() => {
+    if (!threadId) return;
+    let isMounted = true;
+    const poll = async () => {
+      const latest = await supabaseDbService.getChatMessages(threadId);
+      if (!isMounted) return;
+      setMessages((prev) => (latest.length > prev.length ? latest : prev));
+    };
+    const interval = setInterval(poll, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [threadId]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '40px';
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 40), 150);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
+  }, [input]);
+
   const sendMessage = async () => {
-    if (!input.trim() || input.length > 1000 || !user?.id) return;
-    const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
-    if (!thread?.id) return;
-    if (!threadId) setThreadId(thread.id);
+    if (!input.trim() || input.length > 1000 || !user?.id || isSending) return;
+    setIsSending(true);
+    try {
+      const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
+      if (!thread?.id) {
+        addToast('error', 'Unable to open support chat right now.');
+        return;
+      }
+      if (!threadId) setThreadId(thread.id);
 
-    await supabaseDbService.sendChatMessage({
-      thread_id: thread.id,
-      user_id: user.id,
-      sender_type: 'user',
-      message: input.trim(),
-      attachment_url: null,
-      read: false,
-    });
+      const saved = await supabaseDbService.sendChatMessage({
+        thread_id: thread.id,
+        user_id: user.id,
+        sender_type: 'user',
+        message: input.trim(),
+        attachment_url: null,
+        read: false,
+      });
 
-    setInput('');
+      if (!saved) {
+        addToast('error', 'Message failed to send. Please try again.');
+        return;
+      }
+
+      appendMessage(saved);
+      setHasExistingMessages(true);
+      setInput('');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user?.id || isUploading) return;
     const files = e.target.files;
-    if (files && files[0] && user?.id) {
+    if (files && files[0]) {
+      setIsUploading(true);
       const file = files[0];
-      const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
-      if (!thread?.id) return;
-      if (!threadId) setThreadId(thread.id);
+      try {
+        const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
+        if (!thread?.id) {
+          addToast('error', 'Unable to open support chat right now.');
+          return;
+        }
+        if (!threadId) setThreadId(thread.id);
 
-      const path = `${user.id}/${Date.now()}-${file.name}`;
-      const url = await uploadFileToStorage('chat-attachments', path, file);
-      if (url) {
-        await supabaseDbService.sendChatMessage({
+        const path = `${user.id}/${Date.now()}-${file.name}`;
+        const url = await uploadFileToStorage('chat-attachments', path, file);
+        if (!url) {
+          addToast('error', 'Upload failed. Please try again.');
+          return;
+        }
+
+        const saved = await supabaseDbService.sendChatMessage({
           thread_id: thread.id,
           user_id: user.id,
           sender_type: 'user',
@@ -129,11 +197,21 @@ export default function Chat() {
           attachment_url: url,
           read: false,
         });
-      }
+        if (!saved) {
+          addToast('error', 'Attachment failed to send. Please try again.');
+          return;
+        }
 
-      if (fileInputRef.current) fileInputRef.current.value = '';
+        appendMessage(saved);
+        setHasExistingMessages(true);
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setIsUploading(false);
+      }
     }
   };
+
+  const canSend = Boolean(input.trim()) && input.length <= 1000 && !!user?.id && !isSending;
 
   return (
     <div className={`flex flex-col h-screen transition-colors ${
@@ -201,12 +279,12 @@ export default function Chat() {
           </div>
         )}
         {/* Messages */}
-        {messages.map((msg, idx) => {
+        {messages.map((msg) => {
           const fileName = msg.message || '';
           const ext = (fileName.split('.').pop() || '').toLowerCase();
-          const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-          const isVideo = ['mp4', 'mov', 'webm', 'mkv'].includes(ext);
-          const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
+          const isImage = isImageAttachment(fileName, msg.attachment_url);
+          const isVideo = VIDEO_EXTENSIONS.includes(ext);
+          const isAudio = AUDIO_EXTENSIONS.includes(ext);
           const timestamp = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
           return msg.sender_type === 'user' ? (
@@ -215,7 +293,14 @@ export default function Chat() {
                 {msg.attachment_url ? (
                   <div className="space-y-2">
                     {isImage && (
-                      <img src={msg.attachment_url} alt={msg.message} className="max-w-full rounded-lg max-h-96" />
+                      <button
+                        type="button"
+                        onClick={() => setImagePreview({ url: msg.attachment_url || '', name: msg.message })}
+                        className="block w-full"
+                        title="Open image"
+                      >
+                        <img src={msg.attachment_url} alt={msg.message} className="w-full rounded-lg max-h-[420px] object-contain" />
+                      </button>
                     )}
                     {isVideo && (
                       <video controls className="max-w-full rounded-lg max-h-96">
@@ -255,7 +340,14 @@ export default function Chat() {
                 {msg.attachment_url ? (
                   <div className="space-y-2">
                     {isImage && (
-                      <img src={msg.attachment_url} alt={msg.message} className="max-w-full rounded-lg max-h-96" />
+                      <button
+                        type="button"
+                        onClick={() => setImagePreview({ url: msg.attachment_url || '', name: msg.message })}
+                        className="block w-full"
+                        title="Open image"
+                      >
+                        <img src={msg.attachment_url} alt={msg.message} className="w-full rounded-lg max-h-[420px] object-contain" />
+                      </button>
                     )}
                     {isVideo && (
                       <video controls className="max-w-full rounded-lg max-h-96">
@@ -304,30 +396,57 @@ export default function Chat() {
             title="Upload file"
           />
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
-            className={`w-10 h-10 flex items-center justify-center transition-colors ${
-              darkMode ? 'text-[#8b949e] hover:text-[#e8eaed]' : 'text-muted-foreground hover:text-foreground'
-            }`}
+            disabled={!user?.id || isUploading}
+            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${
+              darkMode
+                ? 'bg-white/5 border-white/10 text-[#8b949e] hover:text-[#e8eaed]'
+                : 'bg-white/70 border-border text-muted-foreground hover:text-foreground'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
             title="Upload file"
           >
             <Paperclip className="w-5 h-5" />
           </button>
-          <Input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            placeholder="Type your message..."
-            className={`flex-1 min-h-12 border-0 rounded-lg px-3 text-sm shadow-sm focus:shadow-md ${
-              darkMode ? 'bg-[#161b22] text-[#e8eaed] placeholder-[#8b949e]' : 'bg-[#f9fafb]'
+          <div className="flex-1 min-w-0">
+            {input.trim().length > 0 && (
+              <div className={`text-xs mb-1 ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>
+                User is typing...
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="Type your message..."
+              rows={1}
+              maxLength={1000}
+              disabled={!user?.id || isSending}
+              className={`w-full min-h-[40px] max-h-[150px] rounded-xl px-3 py-2 text-sm outline-none border resize-none transition-shadow ${
+                darkMode
+                  ? 'bg-white/5 backdrop-blur-md border-white/10 text-[#e8eaed] placeholder-[#8b949e]'
+                  : 'bg-white/80 backdrop-blur-md border-border text-foreground placeholder:text-muted-foreground'
+              } [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20`}
+              style={{ resize: 'none' }}
+            />
+          </div>
+          <Button
+            onClick={sendMessage}
+            disabled={!canSend}
+            className={`w-12 h-12 rounded-xl border transition-all duration-200 ${
+              canSend
+                ? 'bg-gradient-to-r from-[#00A36C] to-[#008080] border-transparent text-white shadow-md hover:brightness-110'
+                : darkMode
+                  ? 'bg-white/5 border-white/10 text-white/40 opacity-70'
+                  : 'bg-slate-100 border-slate-200 text-slate-400 opacity-70'
             }`}
-            maxLength={1000}
-          />
-          <Button onClick={sendMessage} disabled={!input.trim()} className="w-12 h-12 bg-[#00b388] hover:bg-[#009670] text-white rounded-lg disabled:opacity-50 shadow-md hover:shadow-lg">
+          >
             <Send className="w-5 h-5" />
           </Button>
         </div>
@@ -335,6 +454,27 @@ export default function Chat() {
           darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'
         }`}>Typical response time: 2-5 minutes</div>
       </div>
+      {imagePreview && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setImagePreview(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setImagePreview(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+            title="Close image"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={imagePreview.url}
+            alt={imagePreview.name || 'Attachment preview'}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[96vw] max-h-[88vh] w-auto h-auto rounded-xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </div>
   );
 }

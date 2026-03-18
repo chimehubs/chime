@@ -29,3 +29,53 @@ select 'chat_messages' as table_name, count(*) as rows from public.chat_messages
 -- select * from public.profiles;
 -- select * from public.accounts;
 -- select * from public.chat_messages;
+
+-- 5) One-time cleanup: remove legacy mock savings goals from existing profiles
+-- Safe to rerun (idempotent). It only removes the old seeded demo goals.
+with expanded as (
+  select
+    p.id,
+    p.email,
+    goal
+  from public.profiles p
+  left join lateral jsonb_array_elements(
+    case
+      when jsonb_typeof(coalesce(p.preferences->'savingsGoals', '[]'::jsonb)) = 'array'
+        then coalesce(p.preferences->'savingsGoals', '[]'::jsonb)
+      else '[]'::jsonb
+    end
+  ) as goal on true
+),
+cleaned as (
+  select
+    id,
+    email,
+    coalesce(
+      jsonb_agg(goal) filter (
+        where goal is not null
+          and not (
+            (goal->>'name' = 'Vacation' and goal->>'category' = 'Travel' and goal->>'target' = '5000' and goal->>'current' = '3200' and goal->>'deadline' = '2026-07-15')
+            or
+            (goal->>'name' = 'Emergency Fund' and goal->>'category' = 'Emergency' and goal->>'target' = '10000' and goal->>'current' = '7500' and goal->>'deadline' = '2026-12-31')
+            or
+            (goal->>'name' = 'New Car' and goal->>'category' = 'Vehicle' and goal->>'target' = '30000' and goal->>'current' = '8900' and goal->>'deadline' = '2027-06-30')
+          )
+      ),
+      '[]'::jsonb
+    ) as cleaned_goals
+  from expanded
+  group by id, email
+),
+updated as (
+  update public.profiles p
+  set
+    preferences = jsonb_set(coalesce(p.preferences, '{}'::jsonb), '{savingsGoals}', c.cleaned_goals, true),
+    updated_at = now()
+  from cleaned c
+  where p.id = c.id
+    and coalesce(p.preferences->'savingsGoals', '[]'::jsonb) <> c.cleaned_goals
+  returning p.id, p.email, jsonb_array_length(c.cleaned_goals) as remaining_goal_count
+)
+select id, email, remaining_goal_count
+from updated
+order by email;

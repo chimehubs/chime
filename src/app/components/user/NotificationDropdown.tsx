@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, X, Trash2, Check } from 'lucide-react';
 import { Card } from '../ui/card';
 import { useNavigate } from 'react-router';
@@ -93,16 +94,16 @@ export default function NotificationDropdown({ userId }: { userId?: string }) {
       >
         <Bell className="w-6 h-6 text-muted-foreground" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-[#00b388] text-white rounded-full px-2 py-0.5 text-xs font-bold">{unreadCount}</span>
+          <span className="absolute -top-1 -right-1 bg-slate-700 text-white rounded-full px-2 py-0.5 text-xs font-bold">{unreadCount}</span>
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Backdrop overlay - fully opaque to hide everything */}
-          <div className="fixed inset-0 bg-black/50 z-[9998]" onClick={() => setOpen(false)}></div>
+          <div className="fixed inset-0 bg-black/50 z-[10000]" onClick={() => setOpen(false)}></div>
           {/* Centered card */}
-          <Card className="fixed left-1/2 top-1/3 transform -translate-x-1/2 w-96 max-h-96 overflow-y-auto p-4 shadow-2xl z-[9999] bg-background border border-border">
+          <Card className="fixed left-1/2 top-1/3 transform -translate-x-1/2 w-96 max-h-96 overflow-y-auto p-4 shadow-2xl z-[10001] bg-background border border-border">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Bell className="w-5 h-5 text-foreground" />
@@ -147,7 +148,8 @@ export default function NotificationDropdown({ userId }: { userId?: string }) {
             </ul>
           )}
           </Card>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

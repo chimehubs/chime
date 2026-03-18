@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Lock, Mail, Home } from 'lucide-react';
+import { Lock, Mail, Home, ShieldCheck, Loader } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -32,130 +32,172 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="p-6 md:p-8 flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl shadow-lg shadow-[#00b388]/20 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
-            <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
-          </div>
-          <span className="text-xl font-semibold text-charcoal-900">Chimahub</span>
-        </div>
-        <motion.button
-          whileHover={{ x: -2 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-charcoal-700 hover:bg-gray-100 transition-colors"
-          title="Back to home"
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-sm font-medium">Back to Home</span>
-        </motion.button>
-      </motion.div>
+    <div
+      className="min-h-screen relative overflow-hidden bg-[#050b0a]"
+      style={{ fontFamily: "'Manrope', 'Inter', sans-serif" }}
+    >
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,163,108,0.18)_0%,rgba(5,11,10,0.8)_55%,rgba(5,11,10,1)_100%)]" />
+        <div className="absolute -top-40 -right-32 h-96 w-96 rounded-full bg-[#00A36C]/20 blur-[120px]" />
+        <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#008080]/20 blur-[120px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.04),rgba(255,255,255,0))]" />
+      </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center px-6 pb-16 pt-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="w-full max-w-md"
-        >
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl mb-2 font-semibold">Welcome back</h2>
-            <p className="text-muted-foreground">Sign in to your banking account securely</p>
-          </div>
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-6 space-y-4">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-4">
-                <Mail className="w-4 h-4 text-[#00b388]" />
-                Enter Your Email
-              </h3>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address *</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    autoComplete="username"
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 bg-white border border-slate-200 focus:ring-2 focus:ring-[#00b388]/20 shadow-sm focus:shadow-md"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    autoComplete="current-password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 h-12 bg-white border border-slate-200 focus:ring-2 focus:ring-[#00b388]/20 shadow-sm focus:shadow-md"
-                    required
-                  />
-                </div>
-              </div>
+      <div className="relative z-10 min-h-screen grid lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="hidden lg:flex flex-col justify-between p-12 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl shadow-lg shadow-[#00b388]/25 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
+              <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
             </div>
-
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <Button
-                type="submit"
-                className="w-full h-12 bg-[#00b388] hover:bg-[#009670] text-white shadow-lg shadow-[#00b388]/20 transition-all"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Signing In...' : 'Sign In'}
-              </Button>
-            </motion.div>
-          </form>
-
-          <div className="mt-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <button
-                onClick={() => navigate('/register')}
-                className="text-[#00b388] hover:text-[#009670] transition-colors font-medium"
-              >
-                Create Account
-              </button>
-            </p>
+            <span className="text-2xl font-semibold">Chimahub</span>
           </div>
-        </motion.div>
+
+          <div className="max-w-xl">
+            <p className="text-xs uppercase tracking-[0.35em] text-white/60">Private Banking</p>
+            <h1 className="mt-4 text-4xl xl:text-5xl font-semibold leading-tight">
+              Welcome back to your global finance hub.
+            </h1>
+            <p className="mt-4 text-white/70 text-base leading-relaxed">
+              Sign in to view your balances, track withdrawals, and reach customer care instantly.
+            </p>
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              {[
+                { label: 'Balances', value: 'Live updates' },
+                { label: 'Security', value: 'Biometric ready' },
+                { label: 'Withdrawals', value: 'Transparent status' },
+                { label: 'Support', value: 'Customer care' }
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+                >
+                  <p className="text-xs text-white/60">{item.label}</p>
+                  <p className="mt-2 text-lg font-semibold">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-sm text-white/50">Secure access with encrypted sessions and private routing.</p>
+        </div>
+
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between p-6 lg:p-8 text-white">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center">
+                <Logo className="w-5 h-5" innerClassName="text-white font-bold text-base" />
+              </div>
+              <span className="text-lg font-semibold">Chimahub</span>
+            </div>
+            <motion.button
+              whileHover={{ x: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              title="Back to home"
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-sm font-medium">Back to Home</span>
+            </motion.button>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center px-6 pb-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="w-full max-w-md"
+            >
+              <div className="mb-8 text-center text-white">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">Secure Login</p>
+                <h2 className="mt-3 text-3xl font-semibold">Welcome back</h2>
+                <p className="mt-2 text-white/70">Sign in to continue to your account.</p>
+              </div>
+
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+                >
+                  {error}
+                </motion.div>
+              )}
+
+              <motion.form
+                onSubmit={handleLogin}
+                className="space-y-5 rounded-2xl border border-white/15 bg-white/10 p-6 backdrop-blur-2xl shadow-[0_25px_70px_rgba(0,0,0,0.4)]"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-white/80">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
+                    <Input
+                      id="email"
+                      autoComplete="username"
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 h-12 bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:ring-2 focus:ring-[#00b388]/30"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-white/80">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
+                    <Input
+                      id="password"
+                      autoComplete="current-password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 h-12 bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:ring-2 focus:ring-[#00b388]/30"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 bg-gradient-to-r from-[#00A36C] to-[#008080] hover:from-[#00b377] hover:to-[#009191] text-white shadow-lg shadow-black/40 transition-all"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Signing In...
+                    </span>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+
+                <div className="flex items-center gap-2 text-xs text-white/60">
+                  <ShieldCheck className="w-4 h-4" />
+                  Verified devices are protected with continuous monitoring.
+                </div>
+              </motion.form>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-white/70">
+                  Don't have an account?{' '}
+                  <button
+                    onClick={() => navigate('/register')}
+                    className="text-[#00b388] hover:text-[#00d19c] transition-colors font-semibold"
+                  >
+                    Create Account
+                  </button>
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-
-
-
-
-

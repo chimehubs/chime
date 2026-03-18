@@ -4,7 +4,6 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/user/Dashboard';
 import AddMoney from './components/user/AddMoney';
-import SendMoney from './components/user/SendMoney';
 import Activity from './components/user/Activity';
 import Savings from './components/user/Savings';
 import Profile from './components/user/Profile';
@@ -83,7 +82,7 @@ export default function App() {
           path="/send-money"
           element={
             <ProtectedRoute>
-              <SendMoney />
+              <Navigate to="/dashboard/withdraw" replace />
             </ProtectedRoute>
           }
         />

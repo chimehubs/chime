@@ -12,7 +12,7 @@ export default function HelpCenter() {
         },
         {
           title: 'Money Movement',
-          body: 'Learn how to add money, send funds, and review transactions.'
+          body: 'Learn how to add money, withdraw funds, and review transactions.'
         },
         {
           title: 'Account Help',

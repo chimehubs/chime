@@ -64,35 +64,7 @@ export default function Savings() {
       if (prefs?.savingsGoals?.length) {
         setGoals(prefs.savingsGoals);
       } else {
-        setGoals([
-          {
-            id: '1',
-            name: 'Vacation',
-            target: 5000,
-            current: 3200,
-            category: 'Travel',
-            deadline: '2026-07-15',
-            color: '#FF6B6B'
-          },
-          {
-            id: '2',
-            name: 'Emergency Fund',
-            target: 10000,
-            current: 7500,
-            category: 'Emergency',
-            deadline: '2026-12-31',
-            color: '#4ECDC4'
-          },
-          {
-            id: '3',
-            name: 'New Car',
-            target: 30000,
-            current: 8900,
-            category: 'Vehicle',
-            deadline: '2027-06-30',
-            color: '#45B7D1'
-          }
-        ]);
+        setGoals([]);
       }
     };
     loadPreferences();
