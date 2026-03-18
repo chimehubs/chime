@@ -8,6 +8,8 @@ import { Label } from '../ui/label';
 import { Card } from '../ui/card';
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
+import ImageAnnouncementBar from './ImageAnnouncementBar';
+import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService } from '../../../services/supabaseDbService';
 import { uploadFileToStorage } from '../../../services/supabaseClient';
@@ -331,6 +333,10 @@ export default function AddMoney() {
             />
           ))}
         </div>
+      </div>
+
+      <div className="px-6 pb-2">
+        <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
       </div>
 
       {/* Content */}

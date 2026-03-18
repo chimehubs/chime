@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import ImageAnnouncementBar from '../../app/components/user/ImageAnnouncementBar';
+import { FLOW_ANNOUNCEMENT_SLIDES } from '../../app/components/user/announcementSlides';
 import {
   OverviewStep,
   AmountStep,
@@ -419,6 +421,10 @@ export const Withdraw: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
       </div>
 
       {error && (
