@@ -40,11 +40,19 @@ export default function Chat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasRunAnimation = useRef(false);
   const prefillApplied = useRef(false);
-  const welcomeMessage = 'Hello! Welcome to Chimahub customer support. How can we assist you today?';
+  const welcomeMessage = 'Hello! Welcome to Chimehubs customer support. How can we assist you today?';
   const { addToast } = useToast();
 
   const appendMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+  }, []);
+
+  const resolveThread = useCallback(async (userId: string) => {
+    const firstAttempt = await supabaseDbService.getOrCreateChatThread(userId);
+    if (firstAttempt?.id) return firstAttempt;
+
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    return supabaseDbService.getOrCreateChatThread(userId);
   }, []);
 
   // Determine where to go back to
@@ -78,8 +86,11 @@ export default function Chat() {
         setDarkMode(!!profile.preferences.darkMode);
       }
       setAccountFrozen(Boolean(getActiveFreezeState(profile?.preferences)));
-      const thread = await supabaseDbService.getOrCreateChatThread(user.id);
-      if (!thread?.id) return;
+      const thread = await resolveThread(user.id);
+      if (!thread?.id) {
+        addToast('error', 'Customer support is temporarily unavailable. Please try again.');
+        return;
+      }
       setThreadId(thread.id);
       const existing = await supabaseDbService.getChatMessages(thread.id);
       setMessages(existing);
@@ -87,7 +98,7 @@ export default function Chat() {
       await supabaseDbService.markThreadRead(thread.id, user.id);
     };
     loadChat();
-  }, [user?.id]);
+  }, [user?.id, resolveThread, addToast]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -152,7 +163,7 @@ export default function Chat() {
     if (!input.trim() || input.length > 1000 || !user?.id || isSending) return;
     setIsSending(true);
     try {
-      const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
+      const thread = threadId ? { id: threadId } : await resolveThread(user.id);
       if (!thread?.id) {
         addToast('error', 'Unable to open customer support right now.');
         return;
@@ -188,7 +199,7 @@ export default function Chat() {
       setIsUploading(true);
       const file = files[0];
       try {
-        const thread = threadId || (await supabaseDbService.getOrCreateChatThread(user.id));
+        const thread = threadId ? { id: threadId } : await resolveThread(user.id);
         if (!thread?.id) {
           addToast('error', 'Unable to open customer support right now.');
           return;
@@ -500,5 +511,7 @@ export default function Chat() {
     </div>
   );
 }
+
+
 
 

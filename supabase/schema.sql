@@ -1,4 +1,4 @@
-﻿-- Chimahub Supabase Full Setup
+-- Chimehubs Supabase Full Setup
 -- Run this entire file in the Supabase SQL editor for a fresh project.
 
 create extension if not exists "pgcrypto";
@@ -338,7 +338,7 @@ begin
   insert into public.notifications (user_id, title, message, type, read, path)
   values (
     _user_id,
-    'Welcome to Chimahub',
+    'Welcome to Chimehubs',
     'Your account is active and your $10 welcome bonus is available.',
     'success',
     false,
@@ -773,4 +773,6 @@ begin
   end;
 end;
 $$;
+
+
 

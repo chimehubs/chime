@@ -1,4 +1,4 @@
-﻿import { useNavigate, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
 import { LayoutDashboard, Users, Receipt, ArrowDownRight, Settings, LogOut, UserCheck, Menu } from 'lucide-react';
 import { Logo } from '../Logo';
@@ -45,7 +45,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
           <div className="w-8 h-8 rounded-lg bg-[#00b388] flex items-center justify-center">
             <Logo innerClassName="text-white" className="w-5 h-5" />
           </div>
-          <h1 className="text-lg tracking-tight font-semibold">Chimahub</h1>
+          <h1 className="text-lg tracking-tight font-semibold">Chimehubs</h1>
         </div>
         <p className="text-xs text-muted-foreground ml-10">Admin Command Center</p>
       </div>
@@ -139,3 +139,5 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
     </div>
   );
 }
+
+

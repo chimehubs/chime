@@ -54,10 +54,10 @@ export const StatusStep: React.FC<StatusStepProps> = ({
         <div>
           <h1 className="text-3xl font-bold text-charcoal-900 mb-3">Processing Withdrawal</h1>
           <p className="text-lg text-charcoal-700 mb-2">
-            We are securing and routing your transaction now.
+            We are reviewing and routing your withdrawal request now.
           </p>
           <p className="text-sm text-charcoal-600 max-w-md mx-auto">
-            This process should complete within 1 minute. Please keep this window open until status updates.
+            This review should finish within 1 minute. Please keep this window open until the status is updated.
           </p>
         </div>
       </motion.div>
@@ -83,10 +83,10 @@ export const StatusStep: React.FC<StatusStepProps> = ({
         <div>
           <h1 className="text-4xl font-bold text-charcoal-900 mb-3">Withdrawal Pending Verification</h1>
           <p className="text-xl text-charcoal-700 max-w-xl mx-auto">
-            Your withdrawal was not completed yet and is currently pending an additional security check.
+            Your withdrawal request is on hold while we complete an additional security review.
           </p>
           <p className="text-sm text-charcoal-600 mt-3 max-w-xl mx-auto">
-            For your account safety, a 6-digit security PIN is required before release. Once verification is done, funds reflect within 1 minute.
+            To protect your account, a 6-digit security PIN is required before the account can be reactivated. Once the PIN is verified, this withdrawal request will be cancelled and you can start a new one.
           </p>
         </div>
 
@@ -114,9 +114,9 @@ export const StatusStep: React.FC<StatusStepProps> = ({
             </div>
             {estimatedArrival ? (
               <div className="border-t border-gray-200 pt-4">
-                <p className="text-sm text-charcoal-600 mb-1">Post-verification Arrival</p>
+                <p className="text-sm text-charcoal-600 mb-1">Withdrawal Timing</p>
                 <p className="font-semibold text-charcoal-900">
-                  Less than 1 minute (target: {new Date(estimatedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  After reactivation, any new withdrawal request is expected to reflect within 1 minute once approved.
                 </p>
               </div>
             ) : null}

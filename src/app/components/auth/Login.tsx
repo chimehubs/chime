@@ -1,21 +1,23 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Lock, Mail, Home, ShieldCheck, Loader } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { signInWithSupabase } from '../../../services/supabaseAuthService';
+import { signInWithSupabase, signOutFromSupabase } from '../../../services/supabaseAuthService';
 import { supabaseDbService } from '../../../services/supabaseDbService';
 import { Logo } from '../Logo';
 import AuthBackgroundCarousel from './AuthBackgroundCarousel';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const isAdminLogin = new URLSearchParams(location.search).get('admin') === '1';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +31,12 @@ export default function Login() {
         const profile = await supabaseDbService.getProfile(userId);
         if (profile?.role === 'admin') {
           navigate('/admin');
+          return;
+        }
+
+        if (isAdminLogin) {
+          await signOutFromSupabase();
+          setError('This access point is reserved for the company admin account.');
           return;
         }
       }
@@ -54,7 +62,7 @@ export default function Login() {
             <div className="w-11 h-11 rounded-2xl shadow-lg shadow-[#00b388]/25 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
               <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
             </div>
-            <span className="text-2xl font-semibold">Chimahub</span>
+            <span className="text-2xl font-semibold">Chimehubs</span>
           </div>
 
           <div className="max-w-xl">
@@ -92,7 +100,7 @@ export default function Login() {
               <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center">
                 <Logo className="w-5 h-5" innerClassName="text-white font-bold text-base" />
               </div>
-              <span className="text-lg font-semibold">Chimahub</span>
+              <span className="text-lg font-semibold">Chimehubs</span>
             </div>
             <motion.button
               whileHover={{ x: -2 }}
@@ -114,9 +122,17 @@ export default function Login() {
               className="w-full max-w-md"
             >
               <div className="mb-8 text-center text-white">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/60">Secure Login</p>
-                <h2 className="mt-3 text-3xl font-semibold">Welcome back</h2>
-                <p className="mt-2 text-white/70">Sign in to continue to your account.</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  {isAdminLogin ? 'Owner Access' : 'Secure Login'}
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold">
+                  {isAdminLogin ? 'Admin Sign In' : 'Welcome back'}
+                </h2>
+                <p className="mt-2 text-white/70">
+                  {isAdminLogin
+                    ? 'Sign in with the company admin account to manage every user on this Supabase project.'
+                    : 'Sign in to continue to your account.'}
+                </p>
               </div>
 
               {error && (
@@ -206,3 +222,5 @@ export default function Login() {
     </div>
   );
 }
+
+

@@ -9,7 +9,7 @@ export default function Terms() {
       <main className="max-w-5xl mx-auto px-6 py-16">
         <h1 className="text-3xl sm:text-4xl font-semibold mb-4">Terms of Service</h1>
         <p className="text-slate-600 mb-8">
-          These terms govern your use of Chimahub. By using the service, you agree to these terms.
+          These terms govern your use of Chimehubs. By using the service, you agree to these terms.
         </p>
 
         <div className="space-y-6">
@@ -53,3 +53,5 @@ export default function Terms() {
     </div>
   );
 }
+
+

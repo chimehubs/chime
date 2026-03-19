@@ -40,6 +40,185 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 import { formatCurrency } from '../ui/utils';
 
+function FloatingDashboardIcons({ darkMode }: { darkMode: boolean }) {
+  const ornaments = [
+    {
+      icon: Landmark,
+      position: 'left-[-10px] top-28 sm:left-[4%] sm:top-36',
+      size: 'w-14 h-14 sm:w-16 sm:h-16',
+      color: '#00a37a',
+      aura: 'rgba(0, 163, 122, 0.18)',
+      delay: 0,
+      duration: 16,
+    },
+    {
+      icon: CreditCard,
+      position: 'right-[2%] top-36 sm:right-[8%] sm:top-40',
+      size: 'w-12 h-12 sm:w-14 sm:h-14',
+      color: '#0f766e',
+      aura: 'rgba(15, 118, 110, 0.16)',
+      delay: 0.4,
+      duration: 14,
+    },
+    {
+      icon: Banknote,
+      position: 'left-[7%] top-[430px] hidden sm:flex',
+      size: 'w-14 h-14',
+      color: '#059669',
+      aura: 'rgba(5, 150, 105, 0.16)',
+      delay: 0.7,
+      duration: 18,
+    },
+    {
+      icon: PiggyBank,
+      position: 'right-[-12px] top-[520px] sm:right-[5%] sm:top-[540px]',
+      size: 'w-14 h-14 sm:w-16 sm:h-16',
+      color: '#14b8a6',
+      aura: 'rgba(20, 184, 166, 0.16)',
+      delay: 1.1,
+      duration: 17,
+    },
+    {
+      icon: TrendingUp,
+      position: 'left-[18%] top-[720px] hidden lg:flex',
+      size: 'w-12 h-12',
+      color: '#0ea5a4',
+      aura: 'rgba(14, 165, 164, 0.14)',
+      delay: 1.5,
+      duration: 13,
+    },
+    {
+      icon: Receipt,
+      position: 'right-[18%] top-[780px] hidden md:flex',
+      size: 'w-12 h-12',
+      color: '#10b981',
+      aura: 'rgba(16, 185, 129, 0.14)',
+      delay: 1.9,
+      duration: 15,
+    },
+    {
+      icon: ArrowUpRight,
+      position: 'left-[46%] top-[240px] hidden xl:flex',
+      size: 'w-11 h-11',
+      color: '#34d399',
+      aura: 'rgba(52, 211, 153, 0.16)',
+      delay: 2.2,
+      duration: 12,
+    },
+  ] as const;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden z-0" aria-hidden="true">
+      <div
+        className={`absolute inset-x-0 top-0 h-[520px] ${
+          darkMode
+            ? 'bg-[radial-gradient(circle_at_top,rgba(0,179,136,0.14),transparent_42%),radial-gradient(circle_at_top_right,rgba(20,184,166,0.10),transparent_38%)]'
+            : 'bg-[radial-gradient(circle_at_top,rgba(0,179,136,0.10),transparent_40%),radial-gradient(circle_at_top_right,rgba(15,118,110,0.08),transparent_34%)]'
+        }`}
+      />
+
+      {ornaments.map((item, index) => {
+        const Icon = item.icon;
+
+        return (
+          <motion.div
+            key={`${item.position}-${index}`}
+            className={`absolute ${item.position}`}
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{
+              opacity: darkMode ? [0.22, 0.42, 0.24] : [0.28, 0.54, 0.3],
+              scale: [1, 1.04, 1],
+              y: [0, -16, 0],
+              x: [0, 8, 0],
+              rotate: [-6, 6, -6],
+            }}
+            transition={{
+              duration: item.duration,
+              delay: item.delay,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          >
+            <div
+              className={`relative ${item.size} rounded-[28px] border backdrop-blur-xl flex items-center justify-center`}
+              style={{
+                background: darkMode
+                  ? 'linear-gradient(135deg, rgba(13,17,23,0.78), rgba(7,41,34,0.44))'
+                  : 'linear-gradient(135deg, rgba(255,255,255,0.96), rgba(226,247,239,0.92))',
+                borderColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)',
+                boxShadow: `0 18px 40px ${item.aura}`,
+              }}
+            >
+              <div
+                className="absolute inset-[1px] rounded-[26px]"
+                style={{
+                  background: darkMode
+                    ? 'radial-gradient(circle at top, rgba(255,255,255,0.12), rgba(255,255,255,0) 66%)'
+                    : 'radial-gradient(circle at top, rgba(255,255,255,0.88), rgba(255,255,255,0) 68%)',
+                }}
+              />
+              <Icon className="relative z-10 w-6 h-6 sm:w-7 sm:h-7" style={{ color: item.color }} />
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FloatingDashboardSticker({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: 18 }}
+      animate={{ opacity: 1, scale: 1, y: [0, -8, 0] }}
+      transition={{
+        opacity: { duration: 0.25 },
+        scale: { duration: 0.25 },
+        y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' },
+      }}
+      className="fixed bottom-24 right-4 z-[15] sm:bottom-8 sm:right-8"
+    >
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute -top-2 -left-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/85"
+          aria-label="Close sticker"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={() => window.open('https://chime.zendesk.com/hc/en-us', '_blank', 'noopener,noreferrer')}
+          className="overflow-hidden rounded-[28px] border border-white/15 bg-white/10 shadow-[0_18px_50px_rgba(0,163,122,0.24)] backdrop-blur-xl"
+          aria-label="Open Chimehubs help"
+          title="Open Chimehubs help"
+        >
+          <img
+            src="https://chime.zendesk.com/hc/theming_assets/01J5RDG4PRMGADPYEQGNVCJ6QA"
+            alt="Chimehubs support sticker"
+            className="h-[88px] w-[88px] object-contain sm:h-[108px] sm:w-[108px]"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { logout, user, updateUser } = useAuthContext();
@@ -63,6 +242,7 @@ export default function Dashboard() {
   const [expensesThisWeek, setExpensesThisWeek] = useState(0);
   const [greeting, setGreeting] = useState('Welcome');
   const [savingsBalance, setSavingsBalance] = useState(0);
+  const [showDashboardSticker, setShowDashboardSticker] = useState(true);
 
   useEffect(() => {
     const computeGreeting = () => {
@@ -121,6 +301,11 @@ export default function Dashboard() {
     loadProfilePrefs();
   }, [user?.id, user?.status]);
 
+  useEffect(() => {
+    const storageKey = `dashboard_sticker_closed_${user?.id || 'guest'}`;
+    setShowDashboardSticker(localStorage.getItem(storageKey) !== 'true');
+  }, [user?.id]);
+
   // Handle "Create Account" button click on the prompt
   const handleStartAccountCreation = () => {
     setShowAccountCreationPrompt(false);
@@ -163,6 +348,12 @@ export default function Dashboard() {
   const handleHandleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleCloseDashboardSticker = () => {
+    const storageKey = `dashboard_sticker_closed_${user?.id || 'guest'}`;
+    localStorage.setItem(storageKey, 'true');
+    setShowDashboardSticker(false);
   };
 
 
@@ -303,8 +494,11 @@ export default function Dashboard() {
             transition={{ duration: 0.5 }}
             data-tour="balance"
           >
-            <Card className="p-6 bg-gradient-to-br from-[#00b388] to-[#009f7a] border-0 shadow-lg relative">
-<div className="relative z-10">
+            <Card className="relative overflow-hidden border border-white/15 bg-white/10 p-6 shadow-[0_24px_60px_rgba(0,122,98,0.22)] backdrop-blur-2xl">
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,179,136,0.86),rgba(0,126,103,0.78)_58%,rgba(10,42,36,0.62))]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_32%)]" />
+              <div className="absolute inset-[1px] rounded-[inherit] border border-white/8" />
+              <div className="relative z-10">
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-white/85 text-sm mb-1">Available Balance {userAccounts.length > 0 ? `(${userAccounts[0]?.account_number})` : ''}</p>
@@ -349,7 +543,7 @@ export default function Dashboard() {
                   <ArrowUpRight className="w-4 h-4" />
                   <span>+12.5% this month</span>
                 </div>
-                <div className="mt-4 pt-4 border-t border-white/15 flex items-center justify-between gap-3 text-white/85 text-sm">
+                <div className="mt-4 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,84,63,0.92),rgba(4,120,87,0.8))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_rgba(1,64,46,0.22)] flex items-center justify-between gap-3 text-white/90 text-sm">
                   <div className="flex items-center gap-2">
                     <PiggyBank className="w-4 h-4" />
                     <span>Savings Balance</span>
@@ -381,14 +575,14 @@ export default function Dashboard() {
             <h3 className={`text-sm mb-4 font-medium ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>Quick Actions</h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { icon: Plus, label: 'Add', color: '#00a37a', bgColor: '#e9f8f3', path: '/add-money', soon: false },
-                { icon: ArrowDownRight, label: 'Withdraw', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/withdraw', soon: false },
-                { icon: CreditCard, label: 'Cards', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/cards', soon: false },
-                { icon: PiggyBank, label: 'Save', color: '#00a37a', bgColor: '#e9f8f3', path: '/savings', soon: false },
-                { icon: Banknote, label: 'Pay Bills', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/pay-bills', soon: false },
-                { icon: Dice5, label: 'Betting', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/betting', soon: false },
-                { icon: Gift, label: 'Cashback', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/cashback', soon: false },
-                { icon: Landmark, label: 'Loan', color: '#00a37a', bgColor: '#e9f8f3', path: '/dashboard/loan', soon: false }
+                { icon: Plus, label: 'Add', color: '#047857', bgColor: '#d9fbef', cardGradient: 'linear-gradient(145deg, rgba(236, 253, 245, 1), rgba(167, 243, 208, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(7, 47, 38, 0.98), rgba(8, 78, 61, 0.92))', path: '/add-money', soon: false },
+                { icon: ArrowDownRight, label: 'Withdraw', color: '#0f766e', bgColor: '#dbfbf8', cardGradient: 'linear-gradient(145deg, rgba(240, 253, 250, 1), rgba(153, 246, 228, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(9, 41, 42, 0.98), rgba(15, 87, 85, 0.92))', path: '/dashboard/withdraw', soon: false },
+                { icon: CreditCard, label: 'Cards', color: '#0369a1', bgColor: '#e0f5ff', cardGradient: 'linear-gradient(145deg, rgba(239, 248, 255, 1), rgba(125, 211, 252, 0.7))', darkGradient: 'linear-gradient(145deg, rgba(11, 32, 52, 0.98), rgba(10, 74, 108, 0.92))', path: '/dashboard/cards', soon: false },
+                { icon: PiggyBank, label: 'Save', color: '#166534', bgColor: '#e3f8e6', cardGradient: 'linear-gradient(145deg, rgba(240, 253, 244, 1), rgba(134, 239, 172, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(12, 38, 22, 0.98), rgba(22, 101, 52, 0.92))', path: '/savings', soon: false },
+                { icon: Banknote, label: 'Pay Bills', color: '#065f46', bgColor: '#dbfce7', cardGradient: 'linear-gradient(145deg, rgba(236, 253, 245, 1), rgba(110, 231, 183, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(8, 39, 28, 0.98), rgba(6, 95, 70, 0.92))', path: '/dashboard/pay-bills', soon: false },
+                { icon: Dice5, label: 'Betting', color: '#0f766e', bgColor: '#dcfdf7', cardGradient: 'linear-gradient(145deg, rgba(240, 253, 250, 1), rgba(94, 234, 212, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(8, 35, 38, 0.98), rgba(13, 104, 111, 0.92))', path: '/dashboard/betting', soon: false },
+                { icon: Gift, label: 'Cashback', color: '#047857', bgColor: '#d1fae5', cardGradient: 'linear-gradient(145deg, rgba(236, 253, 245, 1), rgba(52, 211, 153, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(8, 42, 33, 0.98), rgba(4, 120, 87, 0.92))', path: '/dashboard/cashback', soon: false },
+                { icon: Landmark, label: 'Loan', color: '#0f766e', bgColor: '#d5fbf5', cardGradient: 'linear-gradient(145deg, rgba(240, 253, 250, 1), rgba(45, 212, 191, 0.72))', darkGradient: 'linear-gradient(145deg, rgba(7, 36, 39, 0.98), rgba(15, 118, 110, 0.92))', path: '/dashboard/loan', soon: false }
               ].map((action, index) => (
                 <motion.button
                   key={action.label}
@@ -401,13 +595,19 @@ export default function Dashboard() {
                   transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
                   className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border shadow-sm transition-all ${
                     darkMode
-                      ? 'bg-[#161b22] border-[#21262d] text-[#e8eaed]'
-                      : 'bg-white border-[#d7ebe4]'
+                      ? 'border-[#21262d] text-[#e8eaed]'
+                      : 'border-[#d7ebe4]'
                   } ${
                     action.soon 
                       ? 'opacity-60 cursor-not-allowed' 
                       : 'hover:border-[#9ddfcb] hover:shadow-md'
                   }`}
+                  style={{
+                    background: darkMode ? action.darkGradient : action.cardGradient,
+                    boxShadow: darkMode
+                      ? '0 10px 24px rgba(0,0,0,0.24)'
+                      : '0 10px 22px rgba(15, 118, 110, 0.10)',
+                  }}
                 >
                   {/* SOON Badge */}
                   {action.soon && (
@@ -715,7 +915,14 @@ export default function Dashboard() {
   };
 
   return (
-    <div className={`dashboard-container relative min-h-screen transition-colors ${darkMode ? 'dark' : ''} ${darkMode ? 'text-white' : 'bg-[#f2f5f3] text-[#0f1720]'}`}>
+    <div className={`dashboard-container relative isolate overflow-hidden min-h-screen transition-colors ${darkMode ? 'dark' : ''} ${darkMode ? 'text-white' : 'bg-[#f2f5f3] text-[#0f1720]'}`}>
+      {currentView === 'home' && <FloatingDashboardIcons darkMode={darkMode} />}
+      {currentView === 'home' && (
+        <FloatingDashboardSticker
+          visible={showDashboardSticker}
+          onClose={handleCloseDashboardSticker}
+        />
+      )}
       {/* NotificationDropdown removed from under header bar */}
       {/* Header */}
       <motion.div
@@ -802,7 +1009,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Content */}
-      <div className="pt-6">
+      <div className="relative z-[1] pt-6">
         {renderContent()}
       </div>
 
@@ -811,7 +1018,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className={`fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-[#dbe7e2]'} border-t px-6 py-4 md:hidden`}
+        className={`fixed bottom-0 left-0 right-0 z-20 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-[#dbe7e2]'} border-t px-6 py-4 md:hidden`}
       >
         <div className="flex items-center justify-around">
           {[

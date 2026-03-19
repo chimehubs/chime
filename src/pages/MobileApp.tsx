@@ -4,11 +4,11 @@ export default function MobileApp() {
   return (
     <InfoPage
       title="Mobile App"
-      subtitle="Use Chimahub as a fast, installable PWA on mobile devices."
+      subtitle="Use Chimehubs as a fast, installable PWA on mobile devices."
       sections={[
         {
           title: 'Installable Experience',
-          body: 'Add Chimahub to your home screen for a focused, app-like experience.'
+          body: 'Add Chimehubs to your home screen for a focused, app-like experience.'
         },
         {
           title: 'Optimized Layouts',
@@ -22,3 +22,5 @@ export default function MobileApp() {
     />
   );
 }
+
+

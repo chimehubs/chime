@@ -17,6 +17,8 @@ export type AccountFreezeState = {
   estimatedArrival?: string;
 };
 
+export const DEFAULT_SECURITY_PIN = '937388';
+
 export interface LoanApplication {
   id: string;
   amount: number;
@@ -113,7 +115,7 @@ export function clearFreezeState(preferences?: Record<string, any> | null) {
 }
 
 export function generateSecurityPin() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return DEFAULT_SECURITY_PIN;
 }
 
 export function maskAccountNumber(accountNumber?: string | null) {

@@ -4,7 +4,7 @@ export default function Features() {
   return (
     <InfoPage
       title="Features"
-      subtitle="Chimahub delivers modern banking tools built for clarity, speed, and control."
+      subtitle="Chimehubs delivers modern banking tools built for clarity, speed, and control."
       sections={[
         {
           title: 'Smart Money Movement',
@@ -22,3 +22,5 @@ export default function Features() {
     />
   );
 }
+
+

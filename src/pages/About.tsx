@@ -7,9 +7,9 @@ export default function About() {
     <div className="min-h-screen bg-background text-slate-900">
       <Navigation />
       <main className="max-w-5xl mx-auto px-6 py-16">
-        <h1 className="text-3xl sm:text-4xl font-semibold mb-4">About Chimahub</h1>
+        <h1 className="text-3xl sm:text-4xl font-semibold mb-4">About Chimehubs</h1>
         <p className="text-slate-600 leading-relaxed mb-8">
-          Chimahub is the digital banking experience from Chima Finance Ltd. We focus on secure, modern
+          Chimehubs is the digital banking experience from Chima Finance Ltd. We focus on secure, modern
           financial tools that help you manage money with clarity and confidence.
         </p>
         <div className="grid gap-6 sm:grid-cols-2">
@@ -43,3 +43,5 @@ export default function About() {
     </div>
   );
 }
+
+

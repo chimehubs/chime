@@ -4,7 +4,7 @@ export default function Press() {
   return (
     <InfoPage
       title="Press"
-      subtitle="News and updates about Chimahub and Chima Finance Ltd."
+      subtitle="News and updates about Chimehubs and Chima Finance Ltd."
       sections={[
         {
           title: 'Media Inquiries',
@@ -22,3 +22,5 @@ export default function Press() {
     />
   );
 }
+
+

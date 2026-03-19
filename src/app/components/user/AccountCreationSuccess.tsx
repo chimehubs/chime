@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle, Copy, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
@@ -70,7 +70,7 @@ export default function AccountCreationSuccess({
             transition={{ delay: 0.3 }}
             className="text-2xl sm:text-3xl font-bold mb-2"
           >
-            Welcome to Chimahub, {fullName}!
+            Welcome to Chimehubs, {fullName}!
           </motion.h1>
 
           <motion.p
@@ -193,3 +193,5 @@ export default function AccountCreationSuccess({
     </div>
   );
 }
+
+

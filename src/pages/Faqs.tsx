@@ -4,7 +4,7 @@ export default function Faqs() {
   return (
     <InfoPage
       title="FAQs"
-      subtitle="Common questions about Chimahub."
+      subtitle="Common questions about Chimehubs."
       sections={[
         {
           title: 'How do I create an account?',
@@ -22,3 +22,5 @@ export default function Faqs() {
     />
   );
 }
+
+

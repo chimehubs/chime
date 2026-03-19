@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ImageAnnouncementBar from '../../app/components/user/ImageAnnouncementBar';
 import { FLOW_ANNOUNCEMENT_SLIDES } from '../../app/components/user/announcementSlides';
-import { generateSecurityPin, getActiveFreezeState } from '../../app/components/user/userAccountState';
+import { DEFAULT_SECURITY_PIN, getActiveFreezeState } from '../../app/components/user/userAccountState';
 import {
   OverviewStep,
   AmountStep,
@@ -325,7 +325,7 @@ export const Withdraw: React.FC = () => {
         accountFreeze: {
           isFrozen: true,
           reason: 'withdrawal_security_pin',
-          securityPin: generateSecurityPin(),
+          securityPin: DEFAULT_SECURITY_PIN,
           pendingWithdrawalId: tx.id,
           createdAt: new Date().toISOString(),
           amount,

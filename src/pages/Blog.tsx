@@ -8,7 +8,7 @@ export default function Blog() {
       sections={[
         {
           title: 'Product Insights',
-          body: 'Learn how Chimahub features are designed to simplify daily banking.'
+          body: 'Learn how Chimehubs features are designed to simplify daily banking.'
         },
         {
           title: 'Security Practices',
@@ -22,3 +22,5 @@ export default function Blog() {
     />
   );
 }
+
+

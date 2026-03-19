@@ -21,6 +21,7 @@ const addMethods = [
 ];
 
 export default function AddMoney() {
+  const MAX_PROOF_FILE_SIZE = 10 * 1024 * 1024;
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const [showAccountCreationPrompt, setShowAccountCreationPrompt] = useState(false);
@@ -33,6 +34,7 @@ export default function AddMoney() {
   const [error, setError] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofFilePreview, setProofFilePreview] = useState<string>('');
+  const [proofFilePreviewType, setProofFilePreviewType] = useState<'image' | 'pdf' | null>(null);
   const [uploading, setUploading] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'approved' | 'declined' | null>(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -65,6 +67,14 @@ export default function AddMoney() {
     };
     loadDraft();
   }, [user?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (proofFilePreview) {
+        URL.revokeObjectURL(proofFilePreview);
+      }
+    };
+  }, [proofFilePreview]);
 
   // Admin deposit details should come from a secure backend or environment config.
   // Removed demo hardcoded values for production readiness.
@@ -116,13 +126,29 @@ export default function AddMoney() {
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > MAX_PROOF_FILE_SIZE) {
+        setError('Upload a file smaller than 10MB for a smoother mobile experience.');
+        e.target.value = '';
+        return;
+      }
+
+      if (proofFilePreview) {
+        URL.revokeObjectURL(proofFilePreview);
+      }
+
       setProofFile(file);
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProofFilePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setError('');
+
+      if (file.type.startsWith('image/')) {
+        setProofFilePreview(URL.createObjectURL(file));
+        setProofFilePreviewType('image');
+      } else if (file.type === 'application/pdf') {
+        setProofFilePreview('');
+        setProofFilePreviewType('pdf');
+      } else {
+        setProofFilePreview('');
+        setProofFilePreviewType(null);
+      }
     }
   };
   const handleSubmitProof = async () => {
@@ -255,6 +281,7 @@ export default function AddMoney() {
     setError('');
     setProofFile(null);
     setProofFilePreview('');
+    setProofFilePreviewType(null);
     setVerificationStatus(null);
     setDeclineReason('');
     setPendingNavigate(null);
@@ -273,6 +300,7 @@ export default function AddMoney() {
     setError('');
     setProofFile(null);
     setProofFilePreview('');
+    setProofFilePreviewType(null);
     setVerificationStatus(null);
     setDeclineReason('');
     setPendingNavigate(null);
@@ -414,7 +442,7 @@ export default function AddMoney() {
               <h2 className="text-2xl mb-2 font-semibold">Payment Details</h2>
               <div className="p-4 rounded-lg bg-[#e6f9f4] border border-[#00b388]/20">
                 <p className="text-sm text-gray-700">
-                  These are our default account details to fund your Chimahub account. Send your payment to the details below to complete your add money transaction.
+                  These are our default account details to fund your Chimehubs account. Send your payment to the details below to complete your add money transaction.
                 </p>
               </div>
               <Card className="p-6 space-y-2">
@@ -452,35 +480,59 @@ export default function AddMoney() {
         {step === 4 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-8">
             <h2 className="text-2xl mb-2 font-semibold">{method === 'giftcard' ? 'Upload Gift Card Screenshot' : 'Upload Payment Proof'}</h2>
-            <Card className="p-6 flex flex-col items-center gap-6 bg-muted/50">
+            <Card className="p-4 sm:p-6 flex flex-col items-center gap-6 bg-muted/50 overflow-hidden">
               <div className="w-16 h-16 rounded-full bg-[#e6f9f4] flex items-center justify-center mb-2">
                 {/* ...existing icon... */}
               </div>
-              <div className="text-center">
-                <p className="text-lg font-semibold mb-1">
+              <div className="text-center min-w-0 w-full">
+                <p className="text-lg font-semibold mb-1 break-words">
                   {method === 'giftcard' ? 'Please upload a clear screenshot or photo of the gift card.' : 'Attach your payment receipt'}
                 </p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {method === 'giftcard' ? 'Accepted formats: JPG, PNG, PDF. You may upload up to 7 files at a time.' : 'Accepted formats: JPG, PNG, PDF. Please ensure the receipt clearly shows transaction details.'}
+                <p className="text-sm text-muted-foreground mb-4 break-words leading-6">
+                  {method === 'giftcard'
+                    ? 'Accepted formats: JPG, PNG, PDF. Upload one clear screenshot or photo at a time to keep the page stable on mobile.'
+                    : 'Accepted formats: JPG, PNG, PDF. Please ensure the receipt clearly shows the payment details.'}
                 </p>
               </div>
-              <input
-                id="proof-upload"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={handleProofUpload}
-                className="mb-4"
-                title={method === 'giftcard' ? 'Upload gift card screenshot' : 'Upload payment proof'}
-                placeholder={method === 'giftcard' ? 'Upload gift card screenshot' : 'Upload payment proof'}
-                multiple={method === 'giftcard'}
-                max={method === 'giftcard' ? 7 : undefined}
-              />
-              {proofFilePreview && (
-                <div className="w-full mb-4">
-                  <img src={proofFilePreview} alt="Payment proof preview" className="max-h-64 rounded-lg object-contain mx-auto border border-border" />
-                  <p className="text-sm text-center text-gray-600 mt-2">{proofFile?.name}</p>
+              <div className="w-full">
+                <label
+                  htmlFor="proof-upload"
+                  className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#00b388]/35 bg-white/70 px-4 py-6 text-center transition-colors hover:border-[#00b388] hover:bg-[#f4fffb]"
+                >
+                  <span className="text-sm font-medium text-foreground break-words">
+                    {proofFile ? 'Change uploaded file' : method === 'giftcard' ? 'Tap to upload screenshot' : 'Tap to upload payment proof'}
+                  </span>
+                  <span className="mt-2 text-xs text-muted-foreground break-words">
+                    Maximum file size: 10MB
+                  </span>
+                </label>
+                <input
+                  id="proof-upload"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleProofUpload}
+                  className="sr-only"
+                  title={method === 'giftcard' ? 'Upload gift card screenshot' : 'Upload payment proof'}
+                />
+              </div>
+              {(proofFilePreview || proofFilePreviewType === 'pdf') && (
+                <div className="w-full mb-1 min-w-0 rounded-2xl border border-border bg-background/70 p-3 sm:p-4">
+                  {proofFilePreviewType === 'image' && proofFilePreview ? (
+                    <img
+                      src={proofFilePreview}
+                      alt="Payment proof preview"
+                      className="max-h-64 w-full rounded-lg object-contain mx-auto border border-border bg-black/5"
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-border bg-muted/50 px-4 py-6 text-center">
+                      <p className="text-sm font-medium">PDF selected</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Preview is hidden to keep mobile uploads stable.</p>
+                    </div>
+                  )}
+                  <p className="mt-3 break-all text-center text-sm text-gray-600">{proofFile?.name}</p>
                 </div>
               )}
+              {error && <div className="w-full rounded-lg bg-[#fee2e2] border border-red-200 px-3 py-2 text-xs text-red-900 break-words">{error}</div>}
               <Button onClick={handleSubmitProof} disabled={uploading} className="w-full h-12 bg-[#00b388] hover:bg-[#009670] text-white shadow-md hover:shadow-lg">{uploading ? 'Uploading...' : method === 'giftcard' ? 'Submit Gift Card' : 'Submit Proof'}</Button>
               <Button onClick={handleCancel} variant="outline" className="w-full h-10 mt-2 shadow-sm hover:shadow-md">Cancel</Button>
             </Card>
@@ -516,26 +568,28 @@ export default function AddMoney() {
         {/* Step 6: Result screen */}
         {step === 6 && verificationStatus === 'approved' && (
           <>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="flex flex-col items-center justify-center min-h-[60vh] text-center px-2 sm:px-4">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.5, type: 'spring' }} className="w-20 h-20 rounded-full bg-[#e6f9f4] flex items-center justify-center mb-6">
                 <CheckCircle2 className="w-10 h-10 text-[#00b388]" />
               </motion.div>
-              <h2 className="text-2xl mb-2 font-semibold">Add Successful</h2>
-              <p className="text-muted-foreground mb-8 max-w-sm">Your add of ${amount} has been completed. Funds will reflect in your balance soon.</p>
-              <Button onClick={() => navigate('/dashboard')} className="bg-[#00b388] hover:bg-[#009670] text-white px-8 shadow-md hover:shadow-lg">Back to Dashboard</Button>
+              <h2 className="text-2xl mb-2 font-semibold break-words">Add Successful</h2>
+              <p className="text-muted-foreground mb-8 max-w-sm break-words leading-7">
+                Your deposit of <span className="font-semibold text-foreground">${amount}</span> has been completed. Funds will reflect in your balance shortly.
+              </p>
+              <Button onClick={() => navigate('/dashboard')} className="w-full max-w-sm bg-[#00b388] hover:bg-[#009670] text-white px-8 shadow-md hover:shadow-lg">Back to Dashboard</Button>
             </motion.div>
             <Button onClick={handleCancel} variant="outline" className="w-full h-10 mt-2 shadow-sm hover:shadow-md">Cancel</Button>
           </>
         )}
         {step === 6 && verificationStatus === 'declined' && (
           <>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="flex flex-col items-center justify-center min-h-[60vh] text-center px-2 sm:px-4">
               <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-6">
                 <X className="w-10 h-10 text-red-600" />
               </div>
-              <h2 className="text-2xl mb-2 font-semibold">Add Declined</h2>
-              <p className="text-muted-foreground mb-4 max-w-sm">Reason: {declineReason}</p>
-              <Button onClick={() => navigate('/dashboard')} className="bg-[#00b388] hover:bg-[#009670] text-white px-8 shadow-md hover:shadow-lg">Back to Dashboard</Button>
+              <h2 className="text-2xl mb-2 font-semibold break-words">Add Declined</h2>
+              <p className="text-muted-foreground mb-4 max-w-sm break-words leading-7">Reason: {declineReason}</p>
+              <Button onClick={() => navigate('/dashboard')} className="w-full max-w-sm bg-[#00b388] hover:bg-[#009670] text-white px-8 shadow-md hover:shadow-lg">Back to Dashboard</Button>
             </motion.div>
             <Button onClick={handleCancel} variant="outline" className="w-full h-10 mt-2 shadow-sm hover:shadow-md">Cancel</Button>
           </>
@@ -557,3 +611,5 @@ export default function AddMoney() {
     </div>
   );
 }
+
+

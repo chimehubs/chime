@@ -483,7 +483,7 @@ export default function Cards() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between items-center gap-3">
                         <span className="text-muted-foreground">App</span>
-                        <span className="font-medium">Chimahub</span>
+                        <span className="font-medium">Chimehubs</span>
                       </div>
                       <div className="flex justify-between items-center gap-3">
                         <span className="text-muted-foreground">Available Balance</span>
@@ -527,7 +527,7 @@ export default function Cards() {
         >
           <Card className={`overflow-hidden border ${darkMode ? 'bg-[#161b22] border-[#21262d]' : 'bg-white border-[#dbe7e2]'}`}>
             <img
-              src="/assets/cards-sticker.jfif"
+              src="https://images.ctfassets.net/ao7gxs2zk32d/6HjwkMtoBlPgVMwYEkrvP1/4cad84288ebff3355e11599d06fb17a1/debit_hero.webp"
               alt="Card services sticker"
               className="w-full h-auto object-cover"
             />
@@ -537,6 +537,8 @@ export default function Cards() {
     </div>
   );
 }
+
+
 
 
 

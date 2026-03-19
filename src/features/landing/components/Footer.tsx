@@ -70,7 +70,7 @@ export const Footer: React.FC = () => {
               <div className="w-8 h-8 rounded bg-white/20 flex items-center justify-center">
                 <Logo className="w-5 h-5" innerClassName="text-white font-bold text-sm" />
               </div>
-              <span className="text-xl font-bold">Chimahub</span>
+              <span className="text-xl font-bold">Chimehubs</span>
             </div>
             <p className="text-white/85 text-sm leading-relaxed">
               Secure digital banking for modern financial management.
@@ -128,3 +128,5 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
+
+

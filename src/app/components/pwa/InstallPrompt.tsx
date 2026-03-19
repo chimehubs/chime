@@ -48,11 +48,11 @@ export default function InstallPrompt() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <img
           src="/assets/app-icon-rounded.png"
-          alt="Chimahub app icon"
+          alt="Chimehubs app icon"
           className="h-12 w-12 rounded-2xl"
         />
         <div className="flex-1">
-          <p className="text-sm font-semibold text-slate-900">Install Chimahub</p>
+          <p className="text-sm font-semibold text-slate-900">Install Chimehubs</p>
           <p className="text-xs text-slate-500">Get faster access and a full-screen experience.</p>
         </div>
         <Button onClick={handleInstall} className="w-full bg-[#00b388] hover:bg-[#009670] text-white sm:w-auto">
@@ -62,3 +62,5 @@ export default function InstallPrompt() {
     </div>
   );
 }
+
+

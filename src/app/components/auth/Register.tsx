@@ -79,7 +79,7 @@ export default function Register() {
             <div className="w-11 h-11 rounded-2xl shadow-lg shadow-[#00b388]/25 bg-gradient-to-br from-[#00b388] to-[#009670] flex items-center justify-center">
               <Logo className="w-6 h-6" innerClassName="text-white font-bold text-lg" />
             </div>
-            <span className="text-2xl font-semibold">Chimahub</span>
+            <span className="text-2xl font-semibold">Chimehubs</span>
           </div>
 
           <div className="max-w-xl">
@@ -117,7 +117,7 @@ export default function Register() {
               <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center">
                 <Logo className="w-5 h-5" innerClassName="text-white font-bold text-base" />
               </div>
-              <span className="text-lg font-semibold">Chimahub</span>
+              <span className="text-lg font-semibold">Chimehubs</span>
             </div>
             <motion.button
               whileHover={{ x: -2 }}
@@ -140,7 +140,7 @@ export default function Register() {
             >
               <div className="mb-8 text-center text-white">
                 <p className="text-xs uppercase tracking-[0.35em] text-white/60">Open Account</p>
-                <h2 className="mt-3 text-3xl font-semibold">Create your Chimahub ID</h2>
+                <h2 className="mt-3 text-3xl font-semibold">Create your Chimehubs ID</h2>
                 <p className="mt-2 text-white/70">Start with your email to access your private banking dashboard.</p>
               </div>
 
@@ -280,3 +280,5 @@ export default function Register() {
     </div>
   );
 }
+
+

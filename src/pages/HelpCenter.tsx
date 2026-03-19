@@ -4,7 +4,7 @@ export default function HelpCenter() {
   return (
     <InfoPage
       title="Help Center"
-      subtitle="Find quick answers and guidance for common actions in Chimahub."
+      subtitle="Find quick answers and guidance for common actions in Chimehubs."
       sections={[
         {
           title: 'Getting Started',
@@ -22,3 +22,5 @@ export default function HelpCenter() {
     />
   );
 }
+
+

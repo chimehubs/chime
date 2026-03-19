@@ -75,13 +75,18 @@ export default function Loan() {
   const amountNumber = useMemo(() => Number(amount || 0), [amount]);
   const incomeNumber = useMemo(() => Number(monthlyIncome || 0), [monthlyIncome]);
   const debtNumber = useMemo(() => Number(monthlyDebt || 0), [monthlyDebt]);
-  const eligible = accountAgeDays >= 30;
+  const isActiveAccount = user?.status === 'ACTIVE';
+  const eligible = isActiveAccount && accountAgeDays >= 30;
   const apr = useMemo(() => calculateApr(termMonths), [termMonths]);
   const monthlyPayment = useMemo(() => calculateMonthlyPayment(amountNumber, apr, termMonths), [amountNumber, apr, termMonths]);
   const canSubmit = !!user?.id && eligible && amountNumber >= 500 && incomeNumber > 0 && employerName.trim() && purpose.trim();
 
   const handleApply = async () => {
     if (!user?.id) return;
+    if (!isActiveAccount) {
+      setError('Create and activate your account before applying for a loan.');
+      return;
+    }
     if (!eligible) {
       setError('Your profile must be at least 30 days old before loan application can begin.');
       return;
@@ -169,7 +174,11 @@ export default function Loan() {
                   </p>
                 </div>
                 <div className={`rounded-2xl px-4 py-3 text-sm ${eligible ? 'bg-[#e9f8f3] text-[#006b54]' : 'bg-amber-50 text-amber-700'}`}>
-                  {eligible ? 'You meet the 30-day account age requirement.' : `Apply in ${Math.max(0, 30 - accountAgeDays)} more day(s).`}
+                  {!isActiveAccount
+                    ? 'Complete account creation before applying for credit.'
+                    : eligible
+                      ? 'You meet the 30-day account age requirement.'
+                      : `Apply in ${Math.max(0, 30 - accountAgeDays)} more day(s).`}
                 </div>
               </div>
             </Card>

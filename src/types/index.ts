@@ -19,8 +19,8 @@ export interface UserProfile {
   routingNumber?: string;
   balance?: number;
   preferences?: Record<string, any>;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Account {

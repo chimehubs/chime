@@ -1,5 +1,5 @@
 {
-  "name": "Chimahub",
+  "name": "Chimehubs",
   "short_name": "C",
   "start_url": "/",
   "scope": "/",
@@ -21,3 +21,5 @@
     }
   ]
 }
+
+

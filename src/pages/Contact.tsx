@@ -19,7 +19,7 @@ export default function Contact() {
           </div>
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold mb-2">Customer Support</h2>
-            <p className="text-slate-600">Use the chat feature inside your Chimahub dashboard for help.</p>
+            <p className="text-slate-600">Use the chat feature inside your Chimehubs dashboard for help.</p>
           </div>
         </div>
       </main>
@@ -27,3 +27,5 @@ export default function Contact() {
     </div>
   );
 }
+
+

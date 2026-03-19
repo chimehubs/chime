@@ -52,8 +52,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             avatar: userProfile?.avatar_url || undefined,
             preferences: userProfile?.preferences || {},
             accountNumber: (userProfile as any)?.account_number,
-            createdAt: userProfile?.created_at ? new Date(userProfile.created_at) : undefined,
-            updatedAt: userProfile?.updated_at ? new Date(userProfile.updated_at) : undefined,
+            createdAt: userProfile?.created_at || undefined,
+            updatedAt: userProfile?.updated_at || undefined,
           };
 
           setUser(mappedUser);

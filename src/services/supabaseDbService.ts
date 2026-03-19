@@ -397,29 +397,50 @@ class SupabaseDbService {
   async getOrCreateChatThread(userId: string): Promise<ChatThread | null> {
     const client = getClient();
     if (!client) return null;
-    const { data: existing } = await client
+
+    const { data: existing, error: existingError } = await client
       .from('chat_threads')
       .select('*')
       .eq('user_id', userId)
       .limit(1)
       .maybeSingle();
+    if (existingError) {
+      this.logError('getOrCreateChatThread.selectExisting', existingError);
+    }
     if (existing) return existing as ChatThread;
 
     const { data, error } = await client
       .from('chat_threads')
-      .upsert({ user_id: userId, status: 'open' }, { onConflict: 'user_id' })
+      .insert({ user_id: userId, status: 'open' })
       .select()
       .single();
     if (!error && data) return data as ChatThread;
-    if (error) this.logError('getOrCreateChatThread', error);
+
+    if (error?.code && ['23505', '409'].includes(String(error.code))) {
+      const { data: fallbackExisting, error: fallbackExistingError } = await client
+        .from('chat_threads')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+      if (fallbackExistingError) {
+        this.logError('getOrCreateChatThread.selectAfterConflict', fallbackExistingError);
+      }
+      if (fallbackExisting) return fallbackExisting as ChatThread;
+    }
+
+    if (error) this.logError('getOrCreateChatThread.insert', error);
 
     // Fallback for race conditions where another request created the thread first.
-    const { data: fallback } = await client
+    const { data: fallback, error: fallbackError } = await client
       .from('chat_threads')
       .select('*')
       .eq('user_id', userId)
       .limit(1)
       .maybeSingle();
+    if (fallbackError) {
+      this.logError('getOrCreateChatThread.selectFallback', fallbackError);
+    }
     if (fallback) return fallback as ChatThread;
 
     return null;

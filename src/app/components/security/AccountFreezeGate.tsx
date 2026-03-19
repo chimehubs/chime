@@ -5,6 +5,7 @@ import { AlertTriangle, LockKeyhole, MessageCircle, ShieldCheck } from 'lucide-r
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { formatCurrency } from '../ui/utils';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService } from '../../../services/supabaseDbService';
@@ -100,11 +101,12 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
 
       if (pendingTransaction) {
         await supabaseDbService.updateTransaction(pendingTransaction.id, {
-          status: 'completed',
+          status: 'failed',
           metadata: {
             ...(pendingTransaction.metadata || {}),
             requires_security_pin: false,
             security_pin_verified_at: new Date().toISOString(),
+            security_reset_required_restart: true,
           },
         });
 
@@ -112,16 +114,16 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
           supabaseDbService.createActivity({
             user_id: user.id,
             type: 'withdrawal',
-            description: 'Withdrawal completed after security PIN verification',
+            description: 'Account reactivated after security PIN verification. Held withdrawal cancelled.',
             amount: Number(latestFreeze.amount || pendingTransaction.amount || 0),
           }),
           supabaseDbService.createNotification({
             user_id: user.id,
-            title: 'Withdrawal Completed',
-            message: `${formatCurrency(Number(latestFreeze.amount || pendingTransaction.amount || 0), latestFreeze.currency || pendingTransaction.currency || user.currency || 'USD')} has been released to your destination account.`,
-            type: 'success',
+            title: 'Account Reactivated',
+            message: `${formatCurrency(Number(latestFreeze.amount || pendingTransaction.amount || 0), latestFreeze.currency || pendingTransaction.currency || user.currency || 'USD')} withdrawal was cancelled after security verification. Start a new withdrawal when you are ready.`,
+            type: 'info',
             read: false,
-            path: '/activity',
+            path: '/dashboard/withdraw',
           }),
         ]);
       }
@@ -154,24 +156,38 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen bg-[#050b0a] relative overflow-hidden flex items-center justify-center px-6 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,163,108,0.16),transparent_36%),linear-gradient(180deg,#071210_0%,#050b0a_100%)]" />
+    <div className="min-h-screen bg-[#120708] relative overflow-hidden flex items-center justify-center px-6 py-10">
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute inset-0 bg-center bg-cover"
+          style={{
+            backgroundImage:
+              "url('https://www.shutterstock.com/image-vector/frozen-bank-accountvector-art-that-600nw-2414078733.jpg')",
+            filter: 'sepia(0.08) saturate(0.7) contrast(0.95) brightness(0.38)',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-[#17090b]/78 to-black/82" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_0%,rgba(0,0,0,0.35)_55%,rgba(0,0,0,0.72)_100%)]" />
+        <div className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-red-500/20 blur-3xl" />
+        <div className="absolute -bottom-28 -right-20 w-96 h-96 rounded-full bg-rose-500/18 blur-3xl" />
+      </div>
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-lg">
-        <Card className="border border-white/10 bg-[#0d1614]/85 backdrop-blur-2xl shadow-[0_25px_70px_rgba(0,0,0,0.45)] text-white p-7 space-y-6">
+        <Card className="relative border border-white/12 bg-[linear-gradient(180deg,rgba(70,12,18,0.88)_0%,rgba(36,8,11,0.94)_100%)] backdrop-blur-2xl shadow-[0_25px_70px_rgba(0,0,0,0.55)] text-white p-7 space-y-6 overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_42%)] pointer-events-none" />
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#e9f8f3] flex items-center justify-center flex-shrink-0">
-              <LockKeyhole className="w-6 h-6 text-[#008a69]" />
+            <div className="w-12 h-12 rounded-2xl bg-red-50/90 flex items-center justify-center flex-shrink-0">
+              <LockKeyhole className="w-6 h-6 text-[#b42318]" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-white/45">Account Security Hold</p>
+              <p className="text-xs uppercase tracking-[0.28em] text-white/50">Account Security Hold</p>
               <h1 className="mt-2 text-2xl font-semibold">Your account is temporarily frozen</h1>
               <p className="mt-2 text-sm text-white/70 leading-relaxed">
-                We detected a withdrawal that requires an additional 6-digit security PIN before funds can be released.
+                We detected a withdrawal that requires an additional 6-digit security PIN before your account can be reactivated.
               </p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3 text-sm">
+          <div className="rounded-2xl border border-white/12 bg-white/[0.06] p-5 space-y-3 text-sm">
             <div className="flex items-center justify-between gap-4">
               <span className="text-white/60">Pending withdrawal</span>
               <span className="font-semibold">{formatCurrency(Number(freezeState.amount || 0), freezeState.currency || user?.currency || 'USD').replace(/^US\$/, '$')}</span>
@@ -185,8 +201,8 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
               <span className="font-semibold">{maskAccountNumber(freezeState.accountNumber)}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-white/60">Release window</span>
-              <span className="font-semibold">Under 1 minute after PIN verification</span>
+              <span className="text-white/60">Unlock outcome</span>
+              <span className="font-semibold">Account reactivated, withdrawal cancelled</span>
             </div>
           </div>
 
@@ -210,10 +226,10 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
             </div>
           )}
 
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100 flex items-start gap-2">
+          <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-50 flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 mt-0.5" />
             <span>
-              Until the correct PIN is verified, the withdrawal stays pending and your balance will not be reduced.
+              Until the correct PIN is verified, your account remains frozen. Once verified, the held withdrawal is cancelled and your balance remains unchanged.
             </span>
           </div>
 
@@ -221,7 +237,7 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
             <Button
               onClick={handleUnlock}
               disabled={isSubmitting}
-              className="h-12 bg-gradient-to-r from-[#00A36C] to-[#008080] hover:from-[#00b377] hover:to-[#009191] text-white"
+              className="h-12 bg-gradient-to-r from-[#d92d20] to-[#b42318] hover:from-[#e5483b] hover:to-[#c74235] text-white"
             >
               {isSubmitting ? 'Verifying PIN...' : 'Verify & Unfreeze'}
             </Button>
@@ -237,13 +253,5 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
         </Card>
       </motion.div>
     </div>
-  );
-}
-
-function Label({ htmlFor, className, children }: { htmlFor: string; className?: string; children: React.ReactNode }) {
-  return (
-    <label htmlFor={htmlFor} className={className}>
-      {children}
-    </label>
   );
 }

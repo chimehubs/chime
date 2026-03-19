@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
       <main className="max-w-5xl mx-auto px-6 py-16">
         <h1 className="text-3xl sm:text-4xl font-semibold mb-4">Privacy Policy</h1>
         <p className="text-slate-600 mb-8">
-          This policy explains how Chimahub and Chima Finance Ltd collect, use, and protect your information.
+          This policy explains how Chimehubs and Chima Finance Ltd collect, use, and protect your information.
         </p>
 
         <div className="space-y-6">
@@ -55,3 +55,5 @@ export default function PrivacyPolicy() {
     </div>
   );
 }
+
+
