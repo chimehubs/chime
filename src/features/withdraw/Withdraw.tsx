@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ImageAnnouncementBar from '../../app/components/user/ImageAnnouncementBar';
 import { FLOW_ANNOUNCEMENT_SLIDES } from '../../app/components/user/announcementSlides';
-import { DEFAULT_SECURITY_PIN, getActiveFreezeState } from '../../app/components/user/userAccountState';
+import { DEFAULT_SECURITY_PIN, getAccountControlLimits, getActiveFreezeState } from '../../app/components/user/userAccountState';
 import {
   OverviewStep,
   AmountStep,
@@ -113,22 +113,22 @@ export const Withdraw: React.FC = () => {
           0,
         );
 
+        const prefs = profile?.preferences || {};
+        const accountControls = getAccountControlLimits(prefs);
         setLimits({
           availableBalance: balance,
           withdrawableBalance: balance,
-          dailyLimit: 10000,
+          dailyLimit: accountControls.withdrawalLimit,
           dailyWithdrawn,
           pendingWithdrawals: pendingWithdrawalTransactions.length,
           pendingWithdrawalAmount,
         });
-
-        const prefs = profile?.preferences || {};
         setProfilePreferences(prefs);
         const parsedLinkedAccounts = parseLinkedAccounts(profile);
         setLinkedBankAccounts(parsedLinkedAccounts);
 
         const activeFreeze = getActiveFreezeState(prefs);
-        if (activeFreeze) {
+        if (activeFreeze?.reason === 'withdrawal_security_pin') {
           const selectedLinked =
             activeFreeze.selectedLinkedAccountId
               ? parsedLinkedAccounts.find((item) => item.id === activeFreeze.selectedLinkedAccountId) || null

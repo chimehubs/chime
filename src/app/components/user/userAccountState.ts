@@ -2,9 +2,9 @@
 
 export type AccountFreezeState = {
   isFrozen: boolean;
-  reason: 'withdrawal_security_pin';
-  securityPin: string;
-  pendingWithdrawalId: string;
+  reason: 'withdrawal_security_pin' | 'admin_action';
+  securityPin?: string;
+  pendingWithdrawalId?: string;
   createdAt: string;
   amount: number;
   currency?: string;
@@ -15,9 +15,12 @@ export type AccountFreezeState = {
   accountName?: string;
   remark?: string;
   estimatedArrival?: string;
+  adminNote?: string;
 };
 
 export const DEFAULT_SECURITY_PIN = '937388';
+export const DEFAULT_TRANSACTION_LIMIT = 5000;
+export const DEFAULT_WITHDRAWAL_LIMIT = 10000;
 
 export interface LoanApplication {
   id: string;
@@ -41,7 +44,7 @@ export interface BillPaymentRecord {
   dueDate?: string;
   note?: string;
   createdAt: string;
-  status: 'completed';
+  status: 'completed' | 'failed';
 }
 
 export interface BettingTransferRecord {
@@ -86,15 +89,25 @@ export function getPreferenceArray<T>(preferences: Record<string, any> | null | 
 export function getActiveFreezeState(preferences?: Record<string, any> | null): AccountFreezeState | null {
   const raw = preferences?.accountFreeze;
   if (!raw || typeof raw !== 'object') return null;
-  if (!raw.isFrozen || typeof raw.securityPin !== 'string' || typeof raw.pendingWithdrawalId !== 'string') {
+  if (!raw.isFrozen) {
+    return null;
+  }
+
+  const reason = raw.reason === 'admin_action' ? 'admin_action' : 'withdrawal_security_pin';
+  if (reason === 'withdrawal_security_pin' && typeof raw.pendingWithdrawalId !== 'string') {
     return null;
   }
 
   return {
     isFrozen: true,
-    reason: 'withdrawal_security_pin',
-    securityPin: raw.securityPin,
-    pendingWithdrawalId: raw.pendingWithdrawalId,
+    reason,
+    securityPin:
+      reason === 'withdrawal_security_pin'
+        ? typeof raw.securityPin === 'string' && raw.securityPin.trim().length === 6
+          ? raw.securityPin
+          : DEFAULT_SECURITY_PIN
+        : undefined,
+    pendingWithdrawalId: typeof raw.pendingWithdrawalId === 'string' ? raw.pendingWithdrawalId : undefined,
     createdAt: String(raw.createdAt || new Date().toISOString()),
     amount: Number(raw.amount || 0),
     currency: raw.currency ? String(raw.currency) : undefined,
@@ -105,6 +118,7 @@ export function getActiveFreezeState(preferences?: Record<string, any> | null): 
     accountName: raw.accountName ? String(raw.accountName) : undefined,
     remark: raw.remark ? String(raw.remark) : undefined,
     estimatedArrival: raw.estimatedArrival ? String(raw.estimatedArrival) : undefined,
+    adminNote: raw.adminNote ? String(raw.adminNote) : undefined,
   };
 }
 
@@ -116,6 +130,17 @@ export function clearFreezeState(preferences?: Record<string, any> | null) {
 
 export function generateSecurityPin() {
   return DEFAULT_SECURITY_PIN;
+}
+
+export function getAccountControlLimits(preferences?: Record<string, any> | null) {
+  const raw = preferences?.accountControls;
+  const transactionLimit = Number(raw?.transactionLimit);
+  const withdrawalLimit = Number(raw?.withdrawalLimit);
+
+  return {
+    transactionLimit: Number.isFinite(transactionLimit) && transactionLimit > 0 ? transactionLimit : DEFAULT_TRANSACTION_LIMIT,
+    withdrawalLimit: Number.isFinite(withdrawalLimit) && withdrawalLimit > 0 ? withdrawalLimit : DEFAULT_WITHDRAWAL_LIMIT,
+  };
 }
 
 export function maskAccountNumber(accountNumber?: string | null) {

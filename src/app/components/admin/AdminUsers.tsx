@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import React from 'react';
 import { motion } from 'motion/react';
 import AdminLayout from './AdminLayout';
@@ -14,12 +14,15 @@ import {
   UserCheck,
   Mail,
   Calendar,
-  Wallet
+  Wallet,
+  Trash2
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { clearFreezeState, DEFAULT_TRANSACTION_LIMIT, DEFAULT_WITHDRAWAL_LIMIT, getAccountControlLimits, getActiveFreezeState } from '../user/userAccountState';
 
 
 export default function AdminUsers() {
@@ -35,6 +38,7 @@ export default function AdminUsers() {
     balanceValue: number;
     currency: string;
     joined: string;
+    avatarUrl?: string;
     profile: Profile;
     account?: Account | null;
   };
@@ -54,6 +58,32 @@ export default function AdminUsers() {
   const [fundSuccess, setFundSuccess] = useState('');
   const [isFunding, setIsFunding] = useState(false);
   const [adminPrefs, setAdminPrefs] = useState<Record<string, any>>({});
+  const [paymentDetailsSaved, setPaymentDetailsSaved] = useState('');
+  const [userActionError, setUserActionError] = useState('');
+  const [userActionSuccess, setUserActionSuccess] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [transactionLimitInput, setTransactionLimitInput] = useState(String(DEFAULT_TRANSACTION_LIMIT));
+  const [withdrawalLimitInput, setWithdrawalLimitInput] = useState(String(DEFAULT_WITHDRAWAL_LIMIT));
+  const [freezeNote, setFreezeNote] = useState('');
+  const [isSavingControls, setIsSavingControls] = useState(false);
+  const [isTogglingFreeze, setIsTogglingFreeze] = useState(false);
+
+  const getUserStatus = (profile: Profile) => {
+    const freezeState = getActiveFreezeState(profile.preferences);
+    if (freezeState?.isFrozen) return 'frozen';
+
+    const normalizedStatus = (profile.status || 'UNREGISTERED').toLowerCase();
+    if (normalizedStatus === 'active') return 'active';
+    if (normalizedStatus === 'restricted' || normalizedStatus === 'suspended') return 'restricted';
+    return 'unregistered';
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    if (status === 'active') return 'bg-green-100 text-green-700';
+    if (status === 'frozen') return 'bg-red-100 text-red-700';
+    if (status === 'restricted') return 'bg-orange-100 text-orange-700';
+    return 'bg-amber-100 text-amber-700';
+  };
 
   React.useEffect(() => {
     const loadAdminPrefs = async () => {
@@ -81,7 +111,9 @@ export default function AdminUsers() {
       ]);
 
       const balanceByAccount = new Map<string, number>();
-      transactions.forEach((tx: Transaction) => {
+      transactions
+        .filter((tx: Transaction) => tx.status === 'completed')
+        .forEach((tx: Transaction) => {
         const amount = Number(tx.amount || 0);
         const current = balanceByAccount.get(tx.account_id) || 0;
         balanceByAccount.set(tx.account_id, tx.type === 'credit' ? current + amount : current - amount);
@@ -92,8 +124,7 @@ export default function AdminUsers() {
         const balanceValue = account ? (balanceByAccount.get(account.id) || 0) : 0;
         const currency = profile.currency || account?.currency || 'USD';
         const displayName = profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User';
-        const normalizedStatus = (profile.status || 'UNREGISTERED').toLowerCase();
-        const status = normalizedStatus === 'active' ? 'active' : normalizedStatus === 'restricted' ? 'restricted' : 'unregistered';
+        const status = getUserStatus(profile);
         const joined = profile.created_at ? profile.created_at.split('T')[0] : 'N/A';
         return {
           id: profile.id,
@@ -104,6 +135,7 @@ export default function AdminUsers() {
           balanceValue,
           currency,
           joined,
+          avatarUrl: profile.avatar_url,
           profile,
           account
         } as AdminUserRow;
@@ -124,6 +156,21 @@ export default function AdminUsers() {
       window.removeEventListener('focus', onFocus);
     };
   }, [adminUser?.id]);
+
+  React.useEffect(() => {
+    if (!selectedUser) {
+      setTransactionLimitInput(String(DEFAULT_TRANSACTION_LIMIT));
+      setWithdrawalLimitInput(String(DEFAULT_WITHDRAWAL_LIMIT));
+      setFreezeNote('');
+      return;
+    }
+
+    const limits = getAccountControlLimits(selectedUser.profile.preferences);
+    const freezeState = getActiveFreezeState(selectedUser.profile.preferences);
+    setTransactionLimitInput(String(limits.transactionLimit));
+    setWithdrawalLimitInput(String(limits.withdrawalLimit));
+    setFreezeNote(freezeState?.adminNote || '');
+  }, [selectedUser?.id, selectedUser?.profile?.updated_at]);
 
   // Admin payment details state
   const [adminBankName, setAdminBankName] = useState('');
@@ -153,7 +200,8 @@ export default function AdminUsers() {
         paypal: adminPaypal
       }
     }));
-    alert('Payment details saved!');
+    setPaymentDetailsSaved('Payment details updated successfully.');
+    window.setTimeout(() => setPaymentDetailsSaved(''), 3000);
   };
 
   const filteredUsers = users.filter((row) => {
@@ -165,8 +213,156 @@ export default function AdminUsers() {
   });
 
   const getCurrencySymbol = (currency: string) => {
-    const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', INR: '₹', JPY: '¥', AUD: 'A$', CAD: 'C$' };
+    const symbols: Record<string, string> = { USD: '$', EUR: 'EUR ', GBP: 'GBP ', INR: 'INR ', JPY: 'JPY ', AUD: 'A$', CAD: 'C$' };
     return symbols[currency] || '$';
+  };
+
+  const syncUpdatedProfile = (updatedProfile: Profile) => {
+    setUsers((current) =>
+      current.map((row) =>
+        row.id === updatedProfile.id
+          ? {
+              ...row,
+              profile: updatedProfile,
+              status: getUserStatus(updatedProfile),
+              avatarUrl: updatedProfile.avatar_url,
+              currency: updatedProfile.currency || row.currency,
+            }
+          : row,
+      ),
+    );
+
+    setSelectedUser((current) =>
+      current?.id === updatedProfile.id
+        ? {
+            ...current,
+            profile: updatedProfile,
+            status: getUserStatus(updatedProfile),
+            avatarUrl: updatedProfile.avatar_url,
+            currency: updatedProfile.currency || current.currency,
+          }
+        : current,
+    );
+  };
+
+  const handleSaveAccountControls = async () => {
+    if (!selectedUser?.profile?.id) return;
+
+    const transactionLimit = Number(transactionLimitInput);
+    const withdrawalLimit = Number(withdrawalLimitInput);
+
+    if (!Number.isFinite(transactionLimit) || transactionLimit <= 0) {
+      setUserActionError('Enter a valid transaction limit.');
+      return;
+    }
+    if (!Number.isFinite(withdrawalLimit) || withdrawalLimit <= 0) {
+      setUserActionError('Enter a valid withdrawal limit.');
+      return;
+    }
+
+    setIsSavingControls(true);
+    setUserActionError('');
+    setUserActionSuccess('');
+
+    try {
+      const nextPreferences = {
+        ...(selectedUser.profile.preferences || {}),
+        accountControls: {
+          ...(selectedUser.profile.preferences?.accountControls || {}),
+          transactionLimit,
+          withdrawalLimit,
+        },
+      };
+
+      const updatedProfile = await supabaseDbService.updateProfile(selectedUser.profile.id, {
+        preferences: nextPreferences,
+      });
+
+      if (!updatedProfile) {
+        setUserActionError('Failed to update account limits.');
+        return;
+      }
+
+      syncUpdatedProfile(updatedProfile);
+      setUserActionSuccess('User account limits updated successfully.');
+    } finally {
+      setIsSavingControls(false);
+    }
+  };
+
+  const handleToggleFreeze = async () => {
+    if (!selectedUser?.profile?.id) return;
+
+    const freezeState = getActiveFreezeState(selectedUser.profile.preferences);
+    setUserActionError('');
+    setUserActionSuccess('');
+    setIsTogglingFreeze(true);
+
+    try {
+      const preferences = selectedUser.profile.preferences || {};
+
+      if (freezeState) {
+        let nextPreferences = clearFreezeState(preferences);
+
+        if (freezeState.reason === 'withdrawal_security_pin' && freezeState.pendingWithdrawalId) {
+          const pendingTransactions = await supabaseDbService.getTransactions(selectedUser.profile.id, 500);
+          const heldTransaction = pendingTransactions.find((transaction) => transaction.id === freezeState.pendingWithdrawalId);
+
+          if (heldTransaction) {
+            await supabaseDbService.updateTransaction(heldTransaction.id, {
+              status: 'failed',
+              metadata: {
+                ...(heldTransaction.metadata || {}),
+                requires_security_pin: false,
+                admin_released_at: new Date().toISOString(),
+                security_reset_required_restart: true,
+              },
+            });
+          }
+        }
+
+        const updatedProfile = await supabaseDbService.updateProfile(selectedUser.profile.id, {
+          status: 'ACTIVE' as any,
+          preferences: nextPreferences,
+        });
+
+        if (!updatedProfile) {
+          setUserActionError('Failed to unfreeze this account.');
+          return;
+        }
+
+        syncUpdatedProfile(updatedProfile);
+        setUserActionSuccess('User account unfrozen successfully.');
+        return;
+      }
+
+      const nextPreferences = {
+        ...preferences,
+        accountFreeze: {
+          isFrozen: true,
+          reason: 'admin_action',
+          createdAt: new Date().toISOString(),
+          amount: 0,
+          currency: selectedUser.profile.currency || selectedUser.currency || 'USD',
+          adminNote: freezeNote.trim() || 'Temporarily frozen by admin account control.',
+        },
+      };
+
+      const updatedProfile = await supabaseDbService.updateProfile(selectedUser.profile.id, {
+        status: 'SUSPENDED' as any,
+        preferences: nextPreferences,
+      });
+
+      if (!updatedProfile) {
+        setUserActionError('Failed to freeze this account.');
+        return;
+      }
+
+      syncUpdatedProfile(updatedProfile);
+      setUserActionSuccess('User account frozen successfully.');
+    } finally {
+      setIsTogglingFreeze(false);
+    }
   };
 
   const handleFundUser = async () => {
@@ -279,6 +475,7 @@ export default function AdminUsers() {
   const unregisteredUsers = users.filter((u) => u.status === 'unregistered').length;
   const activeUsers = users.filter((u) => u.status === 'active').length;
   const restrictedUsers = users.filter((u) => u.status === 'restricted').length;
+  const frozenUsers = users.filter((u) => u.status === 'frozen').length;
 
   // Helper: map a user name to a gradient string
   const getUserGradient = (name: string) => {
@@ -306,29 +503,128 @@ export default function AdminUsers() {
       .slice(0, 2);
   };
 
+  const renderUserAvatar = (
+    userRow: AdminUserRow,
+    options?: { sizeClass?: string; textClass?: string; ringClass?: string },
+  ) => {
+    const gradient = getUserGradient(userRow.name);
+    const initials = getUserInitials(userRow.name);
+
+    return (
+      <Avatar className={`${options?.sizeClass || 'h-12 w-12'} ${options?.ringClass || ''}`}>
+        <AvatarImage src={userRow.avatarUrl} alt={userRow.name} className="object-cover" />
+        <AvatarFallback className={`bg-gradient-to-br ${gradient} text-white font-bold ${options?.textClass || 'text-lg'}`}>
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+    );
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+
+    setUserActionError('');
+    setUserActionSuccess('');
+
+    if (selectedUser.profile.role === 'admin') {
+      setUserActionError('The admin account cannot be deleted from user management.');
+      return;
+    }
+
+    if (selectedUser.id === adminUser?.id) {
+      setUserActionError('The active admin session cannot delete itself.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${selectedUser.name} (${selectedUser.email}) permanently? This removes the user from authentication and deletes all linked records.`,
+    );
+
+    if (!confirmed) return;
+
+    setIsDeletingUser(true);
+
+    try {
+      const result = await supabaseDbService.deleteUserAsAdmin(selectedUser.id);
+      if (!result.success) {
+        setUserActionError(result.error || 'User account could not be deleted.');
+        return;
+      }
+
+      setUsers((current) => current.filter((item) => item.id !== selectedUser.id));
+      setShowFullPanel(false);
+      setSelectedUser(null);
+      setUserActionSuccess(`${selectedUser.name} was deleted successfully.`);
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
   return (
     <AdminLayout
       title="User Management"
-      subtitle={`${totalUsers} users â€¢ ${activeUsers} active â€¢ ${unregisteredUsers} unregistered â€¢ ${restrictedUsers} restricted`}
+      subtitle={`${totalUsers} users | ${activeUsers} active | ${frozenUsers} frozen | ${unregisteredUsers} unregistered | ${restrictedUsers} restricted`}
     >
       {/* Admin Payment Details Section */}
-      <Card className="p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Payment Details Configuration</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Bank Name</label>
-            <Input value={adminBankName} onChange={e => setAdminBankName(e.target.value)} placeholder="Bank Name" className="mb-2" />
-            <label className="block text-sm font-medium mb-1">Bank Account Number</label>
-            <Input value={adminBankAccount} onChange={e => setAdminBankAccount(e.target.value)} placeholder="Account Number" className="mb-2" />
-            <label className="block text-sm font-medium mb-1">Account Holder Name</label>
-            <Input value={adminBankHolder} onChange={e => setAdminBankHolder(e.target.value)} placeholder="Account Holder" className="mb-2" />
-          </div> 
-          <div>
-            <label className="block text-sm font-medium mb-1">PayPal Email</label>
-            <Input value={adminPaypal} onChange={e => setAdminPaypal(e.target.value)} placeholder="PayPal Email" className="mb-2" />
+      <Card className="mb-6 overflow-hidden border border-[#d6ebe4] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(237,249,244,0.98))] shadow-[0_18px_50px_rgba(0,163,122,0.08)]">
+        <div className="border-b border-[#d9ece6] bg-[linear-gradient(135deg,rgba(0,163,122,0.08),rgba(0,128,128,0.05))] px-6 py-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-[#0f3b33]">Payment Details Configuration</h2>
+              <p className="text-sm text-[#53756d]">Set the default account details used in add-money flows and admin-managed payment instructions.</p>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#bde4d8] bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#0a7a5a]">
+              <Wallet className="h-4 w-4" />
+              Admin Funding Profile
+            </div>
           </div>
         </div>
-        <Button onClick={handleSavePaymentDetails} className="mt-4 bg-[#00b388] hover:bg-[#009670] text-white">Save Payment Details</Button>
+
+        <div className="grid grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-[#183f37]">Bank Name</label>
+              <Input value={adminBankName} onChange={e => setAdminBankName(e.target.value)} placeholder="Chimehubs settlement bank" className="h-12 border-[#cfe5dd] bg-white/90" />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#183f37]">Bank Account Number</label>
+              <Input value={adminBankAccount} onChange={e => setAdminBankAccount(e.target.value)} placeholder="000123456789" className="h-12 border-[#cfe5dd] bg-white/90" />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#183f37]">Account Holder Name</label>
+              <Input value={adminBankHolder} onChange={e => setAdminBankHolder(e.target.value)} placeholder="Chimehubs Financial Services" className="h-12 border-[#cfe5dd] bg-white/90" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-semibold text-[#183f37]">PayPal Email</label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6f8d86]" />
+                <Input value={adminPaypal} onChange={e => setAdminPaypal(e.target.value)} placeholder="payments@chimehubs.com" className="h-12 border-[#cfe5dd] bg-white/90 pl-10" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-[#d7ebe4] bg-white/85 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6f8d86]">Current Preview</p>
+            <div className="mt-4 space-y-4">
+              <div className="rounded-2xl border border-[#d8ece5] bg-[#f5fbf8] px-4 py-3">
+                <p className="text-xs text-[#6f8d86]">Bank Transfer</p>
+                <p className="mt-2 text-sm font-semibold text-[#143a33]">{adminBankName || 'Bank name not set'}</p>
+                <p className="mt-1 text-sm text-[#345750]">{adminBankAccount || 'Account number not set'}</p>
+                <p className="mt-1 text-sm text-[#345750]">{adminBankHolder || 'Account holder not set'}</p>
+              </div>
+              <div className="rounded-2xl border border-[#d8ece5] bg-[#f5fbf8] px-4 py-3">
+                <p className="text-xs text-[#6f8d86]">PayPal</p>
+                <p className="mt-2 text-sm font-semibold text-[#143a33]">{adminPaypal || 'PayPal email not set'}</p>
+              </div>
+              {paymentDetailsSaved && (
+                <div className="rounded-2xl border border-[#b8e7d7] bg-[#ecfbf5] px-4 py-3 text-sm font-medium text-[#0a7a5a]">
+                  {paymentDetailsSaved}
+                </div>
+              )}
+              <Button onClick={handleSavePaymentDetails} className="h-12 w-full bg-[#00b388] hover:bg-[#009670] text-white">Save Payment Details</Button>
+            </div>
+          </div>
+        </div>
       </Card>
       <div className="space-y-6">
         {/* Search and Filters */}
@@ -352,11 +648,24 @@ export default function AdminUsers() {
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
+              <option value="frozen">Frozen</option>
               <option value="restricted">Restricted</option>
               <option value="unregistered">Unregistered</option>
             </select>
           </div>
         </Card>
+
+        {userActionError && (
+          <Card className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {userActionError}
+          </Card>
+        )}
+
+        {userActionSuccess && (
+          <Card className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {userActionSuccess}
+          </Card>
+        )}
 
         {/* Users Grid and Control Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -374,9 +683,6 @@ export default function AdminUsers() {
                 </Card>
               ) : (
                 filteredUsers.map((user, index) => {
-                  const gradient = getUserGradient(user.name);
-                  const initials = getUserInitials(user.name);
-
                   return (
                     <motion.div
                       key={user.id}
@@ -391,7 +697,10 @@ export default function AdminUsers() {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-3">
-                              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-bold text-lg flex-shrink-0`}>{initials}</div>
+                              {renderUserAvatar(user, {
+                                sizeClass: 'h-12 w-12 shrink-0',
+                                ringClass: 'border border-black/5 shadow-sm',
+                              })}
                               <div>
                                 <h3 className="text-lg font-semibold">{user.name}</h3>
                                 <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -409,11 +718,7 @@ export default function AdminUsers() {
                               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                                 <div>
                                   <p className="text-xs text-muted-foreground mb-1">Status</p>
-                                  <Badge className={
-                                    user.status === 'active' ? 'bg-green-100 text-green-700' :
-                                    user.status === 'restricted' ? 'bg-red-100 text-red-700' :
-                                    'bg-amber-100 text-amber-700'
-                                  }>
+                                  <Badge className={getStatusBadgeClass(user.status)}>
                                     {user.status.replace('_', ' ')}
                                   </Badge>
                                 </div>
@@ -443,12 +748,18 @@ export default function AdminUsers() {
               <Card className="p-6 space-y-6 md:sticky md:top-32">
                 {/* User Profile */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">{selectedUser.name}</h3>
-                  <div className="space-y-3 mb-6 pb-6 border-b border-border">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Email</p>
-                      <p className="text-sm font-medium">{selectedUser.email}</p>
+                  <div className="mb-4 flex items-center gap-4">
+                    {renderUserAvatar(selectedUser, {
+                      sizeClass: 'h-16 w-16',
+                      textClass: 'text-xl',
+                      ringClass: 'border border-black/5 shadow-md',
+                    })}
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold truncate">{selectedUser.name}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{selectedUser.email}</p>
                     </div>
+                  </div>
+                  <div className="space-y-3 mb-6 pb-6 border-b border-border">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">User ID</p>
                       <p className="text-sm font-mono font-medium">{selectedUser.id}</p>
@@ -461,15 +772,97 @@ export default function AdminUsers() {
                     <div className="grid grid-cols-1 gap-2">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Status</p>
-                        <Badge className={
-                          selectedUser.status === 'active' ? 'bg-green-100 text-green-700' :
-                          selectedUser.status === 'restricted' ? 'bg-red-100 text-red-700' :
-                          'bg-amber-100 text-amber-700'
-                        }>
+                        <Badge className={getStatusBadgeClass(selectedUser.status)}>
                           {selectedUser.status.replace('_', ' ')}
                         </Badge>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-4 border-b border-border pb-6">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-3 uppercase tracking-[0.16em]">Account Controls</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="mb-2 block text-xs font-semibold text-muted-foreground">Transaction Limit</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={transactionLimitInput}
+                            onChange={(event) => setTransactionLimitInput(event.target.value)}
+                            placeholder="5000"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-semibold text-muted-foreground">Withdrawal Limit</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={withdrawalLimitInput}
+                            onChange={(event) => setWithdrawalLimitInput(event.target.value)}
+                            placeholder="10000"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-semibold text-muted-foreground">Freeze Note</label>
+                          <textarea
+                            value={freezeNote}
+                            onChange={(event) => setFreezeNote(event.target.value)}
+                            rows={3}
+                            placeholder="Optional note shown when the user account is frozen."
+                            className="w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00b388]/30"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <Button
+                        onClick={handleSaveAccountControls}
+                        disabled={isSavingControls}
+                        variant="outline"
+                        className="w-full border-[#00b388]/30 text-[#0a7a5a] hover:bg-[#ecfbf5]"
+                      >
+                        {isSavingControls ? 'Saving Limits...' : 'Save Limits'}
+                      </Button>
+                      <Button
+                        onClick={handleToggleFreeze}
+                        disabled={isTogglingFreeze}
+                        variant="outline"
+                        className={`w-full ${
+                          selectedUser.status === 'frozen'
+                            ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                            : 'border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700'
+                        }`}
+                      >
+                        {isTogglingFreeze
+                          ? selectedUser.status === 'frozen'
+                            ? 'Unfreezing...'
+                            : 'Freezing...'
+                          : selectedUser.status === 'frozen'
+                            ? 'Unfreeze Account'
+                            : 'Freeze Account'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => setShowFundModal(true)}
+                      className="w-full bg-[#00b388] hover:bg-[#009670] text-white"
+                    >
+                      <Wallet className="mr-2 h-4 w-4" />
+                      Fund Account
+                    </Button>
+                    <Button
+                      onClick={handleDeleteUser}
+                      disabled={isDeletingUser || selectedUser.profile.role === 'admin' || selectedUser.id === adminUser?.id}
+                      variant="outline"
+                      className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {isDeletingUser ? 'Deleting User...' : 'Delete User'}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -506,16 +899,18 @@ export default function AdminUsers() {
               </button>
 
               <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-white">
-                <div className={`w-32 h-32 rounded-full bg-gradient-to-br ${getUserGradient(selectedUser.name)} flex items-center justify-center font-bold text-6xl border-4 border-white shadow-xl`}>
-                  {getUserInitials(selectedUser.name)}
-                </div>
+                {renderUserAvatar(selectedUser, {
+                  sizeClass: 'h-32 w-32 border-4 border-white shadow-xl',
+                  textClass: 'text-5xl',
+                })}
                 <div className="flex-1 text-center md:text-left">
                   <h1 className="text-4xl font-bold">{selectedUser.name}</h1>
                   <p className="text-white/80 text-lg mt-2">{selectedUser.email}</p>
                   <div className="mt-4">
                     <Badge className={
                       selectedUser.status === 'active' ? 'bg-white text-emerald-600' :
-                      selectedUser.status === 'restricted' ? 'bg-white text-red-600' :
+                      selectedUser.status === 'frozen' ? 'bg-white text-red-600' :
+                      selectedUser.status === 'restricted' ? 'bg-white text-orange-600' :
                       'bg-white text-amber-600'
                     }>
                       {selectedUser.status.replace('_', ' ')}
@@ -572,10 +967,85 @@ export default function AdminUsers() {
               </div>
             </div>
 
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold mb-6">Account Controls</h2>
+              <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Transaction Limit</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={transactionLimitInput}
+                      onChange={(event) => setTransactionLimitInput(event.target.value)}
+                      placeholder="5000"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Withdrawal Limit</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={withdrawalLimitInput}
+                      onChange={(event) => setWithdrawalLimitInput(event.target.value)}
+                      placeholder="10000"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Freeze Note</label>
+                  <textarea
+                    value={freezeNote}
+                    onChange={(event) => setFreezeNote(event.target.value)}
+                    rows={4}
+                    placeholder="Optional note shown to the user when their account is frozen."
+                    className="w-full rounded-lg border border-border px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00b388]/30"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Button
+                    onClick={handleSaveAccountControls}
+                    disabled={isSavingControls}
+                    variant="outline"
+                    className="border-[#00b388]/30 text-[#0a7a5a] hover:bg-[#ecfbf5]"
+                  >
+                    {isSavingControls ? 'Saving Limits...' : 'Save Limits'}
+                  </Button>
+                  <Button
+                    onClick={handleToggleFreeze}
+                    disabled={isTogglingFreeze}
+                    variant="outline"
+                    className={
+                      selectedUser.status === 'frozen'
+                        ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                        : 'border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700'
+                    }
+                  >
+                    {isTogglingFreeze
+                      ? selectedUser.status === 'frozen'
+                        ? 'Unfreezing...'
+                        : 'Freezing...'
+                      : selectedUser.status === 'frozen'
+                        ? 'Unfreeze Account'
+                        : 'Freeze Account'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pb-12">
               <Button onClick={() => setShowFundModal(true)} className="flex-1 bg-[#00b388] hover:bg-[#009670] text-white text-lg py-6 font-semibold">
                 <Wallet className="w-5 h-5 mr-2" /> Fund Account
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDeleteUser}
+                disabled={isDeletingUser || selectedUser.profile.role === 'admin' || selectedUser.id === adminUser?.id}
+                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-lg py-6 font-semibold"
+              >
+                <Trash2 className="w-5 h-5 mr-2" />
+                {isDeletingUser ? 'Deleting User...' : 'Delete User'}
               </Button>
               <Button variant="outline" onClick={() => { setShowFullPanel(false); setSelectedUser(null); }} className="flex-1 text-lg py-6 font-semibold">
                 Close
@@ -778,5 +1248,6 @@ export default function AdminUsers() {
     </AdminLayout>
   );
 }
+
 
 

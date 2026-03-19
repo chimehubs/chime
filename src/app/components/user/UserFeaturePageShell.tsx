@@ -6,6 +6,7 @@ import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
 import { useAuthContext } from '../../../context/AuthProvider';
 import AccountCreationPrompt from './AccountCreationPrompt';
 import AccountCreationModal from './AccountCreationModal';
+import FloatingSupportButton from './FloatingSupportButton';
 
 interface UserFeaturePageShellProps {
   title: string;
@@ -15,6 +16,7 @@ interface UserFeaturePageShellProps {
   onBack: () => void;
   headerAction?: React.ReactNode;
   children: React.ReactNode;
+  backgroundImage?: string;
 }
 
 export default function UserFeaturePageShell({
@@ -25,6 +27,7 @@ export default function UserFeaturePageShell({
   onBack,
   headerAction,
   children,
+  backgroundImage,
 }: UserFeaturePageShellProps) {
   const { user } = useAuthContext();
   const [showAccountCreationPrompt, setShowAccountCreationPrompt] = useState(false);
@@ -59,7 +62,18 @@ export default function UserFeaturePageShell({
         }}
       />
 
-      <div className={`min-h-screen transition-colors ${darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-background'}`}>
+      <div className={`relative min-h-screen transition-colors ${darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-background'}`}>
+        {backgroundImage && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url('${backgroundImage}')` }}
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,11,10,0.86),rgba(5,11,10,0.72),rgba(5,11,10,0.88))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,179,136,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.05),transparent_24%)]" />
+          </div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -89,10 +103,12 @@ export default function UserFeaturePageShell({
           </div>
         </motion.div>
 
-        <div className="max-w-5xl mx-auto px-6 pt-6 pb-24 space-y-6">
+        <div className="relative z-[1] max-w-5xl mx-auto px-6 pt-6 pb-24 space-y-6">
           <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
           {children}
         </div>
+
+        <FloatingSupportButton userId={user?.id} darkMode={darkMode} />
       </div>
     </>
   );

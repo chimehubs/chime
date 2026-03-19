@@ -43,7 +43,9 @@ export default function AdminDeposits() {
       const accountById = new Map(accounts.map((a) => [a.id, a]));
 
       const balanceMap = new Map<string, number>();
-      transactions.forEach((tx: Transaction) => {
+      transactions
+        .filter((tx: Transaction) => tx.status === 'completed')
+        .forEach((tx: Transaction) => {
         const current = balanceMap.get(tx.account_id) || 0;
         balanceMap.set(tx.account_id, tx.type === 'credit' ? current + Number(tx.amount) : current - Number(tx.amount));
       });
@@ -240,43 +242,47 @@ export default function AdminDeposits() {
 
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">Deposit Requests</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {deposits.map(deposit => (
-              <motion.button
-                key={deposit.id}
-                onClick={() => {
-                  setSelectedDeposit(deposit.id);
-                  setShowFullPanel(true);
-                }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="text-left"
-              >
-                <Card className={`p-4 cursor-pointer transition-all border-2 ${
-                  selectedDeposit === deposit.id && showFullPanel
-                    ? 'border-[#00b388] bg-[#e6f9f4]'
-                    : 'border-border hover:border-[#00b388]/50'
-                }`}>
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-sm">{deposit.user}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{deposit.email}</p>
+          <Card className="p-4">
+            <div className="max-h-[640px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {deposits.map(deposit => (
+                  <motion.button
+                    key={deposit.id}
+                    onClick={() => {
+                      setSelectedDeposit(deposit.id);
+                      setShowFullPanel(true);
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="text-left"
+                  >
+                    <Card className={`p-4 cursor-pointer transition-all border-2 ${
+                      selectedDeposit === deposit.id && showFullPanel
+                        ? 'border-[#00b388] bg-[#e6f9f4]'
+                        : 'border-border hover:border-[#00b388]/50'
+                    }`}>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold text-sm">{deposit.user}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{deposit.email}</p>
+                          </div>
+                          <Badge className={getStatusColor(deposit.status)}>
+                            {deposit.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-border">
+                          <p className="font-bold text-green-600">{deposit.amount}</p>
+                          <p className="text-xs text-muted-foreground">{deposit.method}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{deposit.created}</p>
                       </div>
-                      <Badge className={getStatusColor(deposit.status)}>
-                        {deposit.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <p className="font-bold text-green-600">{deposit.amount}</p>
-                      <p className="text-xs text-muted-foreground">{deposit.method}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{deposit.created}</p>
-                  </div>
-                </Card>
-              </motion.button>
-            ))}
-          </div>
+                    </Card>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 

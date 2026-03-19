@@ -1,5 +1,17 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { Landmark, CircleCheck, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import {
+  AlertTriangle,
+  BadgeDollarSign,
+  BriefcaseBusiness,
+  CircleCheck,
+  Clock3,
+  FileSearch,
+  Landmark,
+  ShieldCheck,
+  Sparkles,
+  WalletCards,
+} from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
@@ -35,6 +47,7 @@ function calculateMonthlyPayment(amount: number, apr: number, termMonths: number
 
 export default function Loan() {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
   const [profilePreferences, setProfilePreferences] = useState<Record<string, any>>({});
   const [applications, setApplications] = useState<LoanApplication[]>([]);
@@ -78,8 +91,25 @@ export default function Loan() {
   const isActiveAccount = user?.status === 'ACTIVE';
   const eligible = isActiveAccount && accountAgeDays >= 30;
   const apr = useMemo(() => calculateApr(termMonths), [termMonths]);
-  const monthlyPayment = useMemo(() => calculateMonthlyPayment(amountNumber, apr, termMonths), [amountNumber, apr, termMonths]);
-  const canSubmit = !!user?.id && eligible && amountNumber >= 500 && incomeNumber > 0 && employerName.trim() && purpose.trim();
+  const monthlyPayment = useMemo(
+    () => calculateMonthlyPayment(amountNumber, apr, termMonths),
+    [amountNumber, apr, termMonths],
+  );
+  const canSubmit =
+    !!user?.id &&
+    eligible &&
+    amountNumber >= 500 &&
+    incomeNumber > 0 &&
+    employerName.trim().length > 0 &&
+    purpose.trim().length > 0;
+
+  const shellCardClass = darkMode
+    ? 'border-white/10 bg-white/5 text-white backdrop-blur-xl shadow-[0_24px_60px_rgba(0,0,0,0.28)]'
+    : 'border-slate-200/80 bg-white/80 text-slate-950 backdrop-blur-xl shadow-[0_24px_60px_rgba(15,23,42,0.12)]';
+  const innerCardClass = darkMode
+    ? 'border-white/10 bg-black/20'
+    : 'border-slate-200/80 bg-white/90';
+  const mutedTextClass = darkMode ? 'text-slate-300' : 'text-slate-600';
 
   const handleApply = async () => {
     if (!user?.id) return;
@@ -149,201 +179,329 @@ export default function Loan() {
     }
   };
 
+  const summaryCards = [
+    {
+      label: 'Eligibility',
+      value: eligible ? 'Ready Now' : 'Pending',
+      detail: eligible ? '30-day requirement met' : `${Math.max(0, 30 - accountAgeDays)} day(s) remaining`,
+      icon: ShieldCheck,
+      accent: 'from-emerald-500/30 via-teal-500/20 to-cyan-500/20',
+      iconClass: 'text-emerald-100',
+    },
+    {
+      label: 'Estimated APR',
+      value: `${apr.toFixed(1)}%`,
+      detail: `${termMonths}-month term`,
+      icon: BadgeDollarSign,
+      accent: 'from-cyan-500/35 via-sky-500/20 to-emerald-400/20',
+      iconClass: 'text-cyan-100',
+    },
+    {
+      label: 'Monthly Payment',
+      value: formatCurrency(monthlyPayment || 0, currency).replace(/^US\$/, '$'),
+      detail: 'Projected installment',
+      icon: WalletCards,
+      accent: 'from-violet-500/30 via-fuchsia-500/15 to-cyan-400/15',
+      iconClass: 'text-fuchsia-100',
+    },
+    {
+      label: 'Profile Age',
+      value: `${accountAgeDays} days`,
+      detail: 'Account seasoning',
+      icon: Clock3,
+      accent: 'from-amber-400/30 via-orange-400/20 to-yellow-300/20',
+      iconClass: 'text-amber-100',
+    },
+  ];
+
   return (
     <UserFeaturePageShell
       title="Loans"
-      description="Apply for personal credit with transparent pricing and review status."
+      description="Apply for personal credit with transparent pricing, fixed review steps, and tracked application status."
       darkMode={darkMode}
-      icon={<Landmark className="w-5 h-5 text-[#00a37a]" />}
+      icon={<Landmark className="h-5 w-5 text-[#00a37a]" />}
       onBack={() => navigate('/dashboard')}
     >
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.22)] sm:px-8">
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(5,46,38,0.96),rgba(12,74,110,0.9)_58%,rgba(8,145,178,0.84))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.2),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_28%)]" />
+        <motion.div
+          className="absolute right-6 top-6 rounded-[28px] border border-white/10 bg-white/10 p-4 backdrop-blur-xl"
+          animate={{ y: [0, -10, 0], rotate: [0, 4, 0] }}
+          transition={{ duration: 5.4, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Landmark className="h-10 w-10 text-white/90" />
+        </motion.div>
+        <motion.div
+          className="absolute bottom-6 right-24 rounded-[24px] border border-white/10 bg-white/10 p-3 backdrop-blur-xl"
+          animate={{ y: [0, 8, 0], x: [0, 4, 0] }}
+          transition={{ duration: 6.2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <FileSearch className="h-6 w-6 text-[#b8fff2]" />
+        </motion.div>
+
+        <div className="relative max-w-3xl text-white">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white/80">
+            <Sparkles className="h-3.5 w-3.5 text-[#7ef5cf]" />
+            Lending Desk
+          </div>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Apply with a clear repayment view before you submit.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm text-white/78 sm:text-base">
+            Chimehubs reviews loan requests based on account age, affordability, income strength, and profile stability.
+            Every application is logged so you can track its review status from one place.
+          </p>
+        </div>
+      </section>
+
       {loading ? (
-        <Card className={`p-8 text-center ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
-          <p className="text-muted-foreground">Loading loan eligibility...</p>
+        <Card className={`p-8 text-center ${shellCardClass}`}>
+          <p className={mutedTextClass}>Loading loan eligibility...</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
-          <div className="space-y-6">
-            <Card className={`p-6 ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Eligibility Status</p>
-                  <h2 className="mt-2 text-2xl font-semibold">{eligible ? 'Eligible to Apply' : 'Eligibility Pending'}</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Account age: {accountAgeDays} day{accountAgeDays === 1 ? '' : 's'}
-                  </p>
-                </div>
-                <div className={`rounded-2xl px-4 py-3 text-sm ${eligible ? 'bg-[#e9f8f3] text-[#006b54]' : 'bg-amber-50 text-amber-700'}`}>
-                  {!isActiveAccount
-                    ? 'Complete account creation before applying for credit.'
-                    : eligible
-                      ? 'You meet the 30-day account age requirement.'
-                      : `Apply in ${Math.max(0, 30 - accountAgeDays)} more day(s).`}
-                </div>
-              </div>
-            </Card>
-
-            <Card className={`p-6 space-y-5 ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="loanAmount" className="mb-2 block">Requested Amount</Label>
-                  <Input
-                    id="loanAmount"
-                    type="number"
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    placeholder="0.00"
-                    className={`h-12 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : ''}`}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="term" className="mb-2 block">Repayment Term</Label>
-                  <select
-                    id="term"
-                    value={termMonths}
-                    onChange={(event) => setTermMonths(Number(event.target.value))}
-                    className={`w-full h-12 rounded-xl border px-3 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : 'bg-white border-border'}`}
-                  >
-                    {TERM_OPTIONS.map((term) => (
-                      <option key={term} value={term}>{term} months</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="income" className="mb-2 block">Monthly Income</Label>
-                  <Input
-                    id="income"
-                    type="number"
-                    value={monthlyIncome}
-                    onChange={(event) => setMonthlyIncome(event.target.value)}
-                    placeholder="0.00"
-                    className={`h-12 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : ''}`}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="debt" className="mb-2 block">Monthly Debt Obligations</Label>
-                  <Input
-                    id="debt"
-                    type="number"
-                    value={monthlyDebt}
-                    onChange={(event) => setMonthlyDebt(event.target.value)}
-                    placeholder="0.00"
-                    className={`h-12 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : ''}`}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="employer" className="mb-2 block">Employer / Business Name</Label>
-                  <Input
-                    id="employer"
-                    value={employerName}
-                    onChange={(event) => setEmployerName(event.target.value)}
-                    placeholder="Your employer or business"
-                    className={`h-12 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : ''}`}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="purpose" className="mb-2 block">Loan Purpose</Label>
-                  <Input
-                    id="purpose"
-                    value={purpose}
-                    onChange={(event) => setPurpose(event.target.value)}
-                    placeholder="Home repair, vehicle, tuition"
-                    className={`h-12 ${darkMode ? 'bg-[#0d1117] border-[#21262d]' : ''}`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold mb-3">Quick Amounts</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {QUICK_AMOUNTS.map((quickAmount) => (
-                    <button
-                      key={quickAmount}
-                      type="button"
-                      onClick={() => setAmount(String(quickAmount))}
-                      className={`h-10 rounded-xl border text-sm font-semibold transition-colors ${
-                        Number(amount) === quickAmount
-                          ? 'bg-[#00b388] text-white border-[#00b388]'
-                          : darkMode
-                            ? 'border-[#21262d] bg-[#0d1117] hover:border-[#00b388]'
-                            : 'border-border bg-white hover:border-[#00b388]'
-                      }`}
-                    >
-                      ${quickAmount}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`rounded-2xl border p-5 ${darkMode ? 'border-[#21262d] bg-[#0d1117]' : 'border-border bg-[#f8fbfa]'}`}>
-                <h3 className="text-base font-semibold">Estimated Terms</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">APR</p>
-                    <p className="mt-1 font-semibold">{apr.toFixed(1)}%</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Card
+                  key={item.label}
+                  className={`relative overflow-hidden border-0 p-5 text-white shadow-[0_24px_50px_rgba(0,0,0,0.18)] ${darkMode ? 'bg-[#071b18]' : 'bg-slate-950'}`}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${item.accent}`} />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%)]" />
+                  <div className="relative flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-white/70">{item.label}</p>
+                      <p className="mt-3 text-3xl font-semibold tracking-tight">{item.value}</p>
+                      <p className="mt-2 text-xs text-white/75">{item.detail}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
+                      <Icon className={`h-5 w-5 ${item.iconClass}`} />
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Monthly Payment</p>
-                    <p className="mt-1 font-semibold">{formatCurrency(monthlyPayment || 0, currency).replace(/^US\$/, '$')}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Decision Basis</p>
-                    <p className="mt-1 font-semibold">Account age, income, affordability</p>
-                  </div>
-                </div>
-              </div>
-
-              {error && (
-                <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 mt-0.5" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {success && (
-                <div className="rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-start gap-2">
-                  <CircleCheck className="w-4 h-4 mt-0.5" />
-                  <span>{success}</span>
-                </div>
-              )}
-
-              <Button
-                onClick={handleApply}
-                disabled={!canSubmit || submitting}
-                className="w-full h-12 bg-gradient-to-r from-[#00A36C] to-[#008080] hover:from-[#00b377] hover:to-[#009191] text-white"
-              >
-                {submitting ? 'Submitting Application...' : 'Apply for Loan'}
-              </Button>
-            </Card>
+                </Card>
+              );
+            })}
           </div>
 
-          <Card className={`p-6 ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
-            <h2 className="text-lg font-semibold mb-4">Application History</h2>
-            <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-              {applications.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No loan applications submitted yet.</p>
-              ) : (
-                applications.map((application) => (
-                  <div key={application.id} className={`rounded-xl border p-4 ${darkMode ? 'border-[#21262d] bg-[#0d1117]' : 'border-border bg-white'}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{formatCurrency(application.amount, currency).replace(/^US\$/, '$')}</p>
-                        <p className="text-xs text-muted-foreground">{application.termMonths} months · {application.apr.toFixed(1)}% APR</p>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${application.status === 'reviewing' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
-                        {application.status}
-                      </span>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <Card className={`overflow-hidden p-0 ${shellCardClass}`}>
+              <div className="border-b border-white/10 bg-gradient-to-r from-[#00a37a]/18 via-[#10b981]/12 to-[#0ea5e9]/18 px-6 py-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium tracking-[0.18em] text-white/80 uppercase">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#7ef5cf]" />
+                      Eligibility Review
                     </div>
-                    <p className="mt-3 text-sm">{application.purpose}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">Submitted {new Date(application.createdAt).toLocaleString()}</p>
+                    <h2 className="text-2xl font-semibold tracking-tight">
+                      {!isActiveAccount
+                        ? 'Activate your banking profile before requesting credit.'
+                        : eligible
+                          ? 'Your profile is ready for a loan application.'
+                          : 'Your loan profile is still seasoning.'}
+                    </h2>
+                    <p className={`max-w-2xl text-sm ${mutedTextClass}`}>
+                      {!isActiveAccount
+                        ? 'Finish account creation first. Loan applications are available only to active accounts.'
+                        : eligible
+                          ? 'You meet the account-age rule and can submit a full application now.'
+                          : `Loan access opens once your account reaches 30 days. You have ${Math.max(0, 30 - accountAgeDays)} day(s) remaining.`}
+                    </p>
                   </div>
-                ))
-              )}
-            </div>
-          </Card>
+                  <div className={`rounded-3xl border px-4 py-3 text-sm ${innerCardClass}`}>
+                    <p className="font-semibold">Affordability Preview</p>
+                    <p className={`mt-1 text-xs ${mutedTextClass}`}>
+                      Estimated monthly payment: {formatCurrency(monthlyPayment || 0, currency).replace(/^US\$/, '$')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="loanAmount" className="mb-2 block">Requested Amount</Label>
+                    <Input
+                      id="loanAmount"
+                      type="number"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      placeholder="0.00"
+                      className={`h-12 ${darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white/90'}`}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="term" className="mb-2 block">Repayment Term</Label>
+                    <select
+                      id="term"
+                      value={termMonths}
+                      onChange={(event) => setTermMonths(Number(event.target.value))}
+                      className={`h-12 w-full rounded-xl border px-3 ${darkMode ? 'border-white/10 bg-black/20 text-white' : 'border-slate-200 bg-white/90'}`}
+                    >
+                      {TERM_OPTIONS.map((term) => (
+                        <option key={term} value={term}>{term} months</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="income" className="mb-2 block">Monthly Income</Label>
+                    <Input
+                      id="income"
+                      type="number"
+                      value={monthlyIncome}
+                      onChange={(event) => setMonthlyIncome(event.target.value)}
+                      placeholder="0.00"
+                      className={`h-12 ${darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white/90'}`}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="debt" className="mb-2 block">Monthly Debt Obligations</Label>
+                    <Input
+                      id="debt"
+                      type="number"
+                      value={monthlyDebt}
+                      onChange={(event) => setMonthlyDebt(event.target.value)}
+                      placeholder="0.00"
+                      className={`h-12 ${darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white/90'}`}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="employer" className="mb-2 block">Employer / Business Name</Label>
+                    <div className="relative">
+                      <BriefcaseBusiness className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`} />
+                      <Input
+                        id="employer"
+                        value={employerName}
+                        onChange={(event) => setEmployerName(event.target.value)}
+                        placeholder="Your employer or business"
+                        className={`h-12 pl-10 ${darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white/90'}`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="purpose" className="mb-2 block">Loan Purpose</Label>
+                    <Input
+                      id="purpose"
+                      value={purpose}
+                      onChange={(event) => setPurpose(event.target.value)}
+                      placeholder="Home repair, medical, education"
+                      className={`h-12 ${darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-white/90'}`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-3 text-sm font-semibold">Quick Amounts</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {QUICK_AMOUNTS.map((quickAmount) => (
+                      <button
+                        key={quickAmount}
+                        type="button"
+                        onClick={() => setAmount(String(quickAmount))}
+                        className={`h-11 rounded-2xl border text-sm font-semibold transition-colors ${
+                          Number(amount) === quickAmount
+                            ? 'border-[#00b388] bg-[#00b388] text-white'
+                            : darkMode
+                              ? 'border-white/10 bg-black/20 hover:border-[#00b388]'
+                              : 'border-slate-200 bg-white/90 hover:border-[#00b388]'
+                        }`}
+                      >
+                        ${quickAmount}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className={`rounded-3xl border p-4 ${innerCardClass}`}>
+                    <p className="text-sm font-medium">APR</p>
+                    <p className="mt-2 text-2xl font-semibold">{apr.toFixed(1)}%</p>
+                  </div>
+                  <div className={`rounded-3xl border p-4 ${innerCardClass}`}>
+                    <p className="text-sm font-medium">Monthly Payment</p>
+                    <p className="mt-2 text-2xl font-semibold">
+                      {formatCurrency(monthlyPayment || 0, currency).replace(/^US\$/, '$')}
+                    </p>
+                  </div>
+                  <div className={`rounded-3xl border p-4 ${innerCardClass}`}>
+                    <p className="text-sm font-medium">Decision Basis</p>
+                    <p className={`mt-2 text-sm ${mutedTextClass}`}>Income, debt load, account history, and term selection.</p>
+                  </div>
+                </div>
+
+                {error ? (
+                  <div className="flex items-start gap-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                ) : null}
+
+                {success ? (
+                  <div className="flex items-start gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                    <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{success}</span>
+                  </div>
+                ) : null}
+
+                <Button
+                  onClick={handleApply}
+                  disabled={!canSubmit || submitting}
+                  className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#00A36C] via-[#00b388] to-[#008080] text-white shadow-[0_14px_30px_rgba(0,163,108,0.24)] hover:from-[#00b377] hover:via-[#00c396] hover:to-[#009191]"
+                >
+                  {submitting ? 'Submitting Application...' : 'Apply for Loan'}
+                </Button>
+              </div>
+            </Card>
+
+            <Card className={`p-6 ${shellCardClass}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold">Application History</h2>
+                  <p className={`mt-1 text-sm ${mutedTextClass}`}>Track every loan request and its current review stage.</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                  <FileSearch className="h-5 w-5 text-[#7ef5cf]" />
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                {applications.length === 0 ? (
+                  <div className={`rounded-3xl border p-5 ${innerCardClass}`}>
+                    <p className="font-medium">No loan applications yet</p>
+                    <p className={`mt-2 text-sm ${mutedTextClass}`}>
+                      Submitted applications will appear here with term, rate, and review status.
+                    </p>
+                  </div>
+                ) : (
+                  applications.map((application) => (
+                    <div key={application.id} className={`rounded-3xl border p-4 ${innerCardClass}`}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-semibold">
+                            {formatCurrency(application.amount, currency).replace(/^US\$/, '$')}
+                          </p>
+                          <p className={`mt-1 text-xs ${mutedTextClass}`}>
+                            {application.termMonths} months | {application.apr.toFixed(1)}% APR
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold capitalize text-amber-200">
+                          {application.status}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm">{application.purpose}</p>
+                      <p className={`mt-2 text-xs ${mutedTextClass}`}>
+                        Submitted {new Date(application.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </UserFeaturePageShell>
   );
 }
-

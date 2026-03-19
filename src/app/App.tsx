@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Landing from '../features/landing/Landing';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
@@ -38,9 +39,22 @@ import SystemStatus from '../pages/SystemStatus';
 import Faqs from '../pages/Faqs';
 import { AdminRoute, ProtectedRoute } from '../routes/ProtectedRoute';
 
+function ScrollToTop() {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [pathname, search]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Landing />} />

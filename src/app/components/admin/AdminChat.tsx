@@ -216,10 +216,21 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
         initial={{ y: '100%', x: 0 }}
         animate={{ y: 0, x: 0 }}
         exit={{ y: '100%', x: 0 }}
-        className="w-full sm:w-[500px] h-screen sm:h-[90vh] sm:rounded-3xl bg-white flex flex-col shadow-2xl"
+        className="relative w-full sm:w-[500px] h-screen sm:h-[90vh] sm:rounded-3xl bg-white flex flex-col shadow-2xl overflow-hidden"
       >
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage:
+                "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')",
+              filter: 'brightness(0.82) saturate(0.82)',
+            }}
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(247,250,249,0.82),rgba(255,255,255,0.92))]" />
+        </div>
         {/* Header */}
-        <motion.div className="sticky top-0 z-10 bg-white border-b border-border px-4 py-4 flex items-center justify-between sm:rounded-t-3xl">
+        <motion.div className="sticky top-0 z-10 bg-white/72 border-b border-border px-4 py-4 flex items-center justify-between sm:rounded-t-3xl">
           <div className="flex items-center gap-3">
             {view === 'chat' && (
               <motion.button
@@ -261,7 +272,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
 
         {view === 'list' ? (
           // Conversation List View
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="relative flex-1 flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -332,7 +343,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
           </div>
         ) : (
           // Chat View
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="relative flex-1 flex flex-col overflow-hidden">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {messages.length === 0 ? (
@@ -440,7 +451,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
             </div>
 
             {/* Input Area */}
-            <div className="sticky bottom-0 bg-white border-t border-border px-4 py-4 shadow-lg sm:rounded-b-3xl">
+            <div className="sticky bottom-0 bg-white/78 border-t border-border px-4 py-4 shadow-lg sm:rounded-b-3xl">
               <div className="flex items-end gap-2">
                 <input
                   ref={fileInputRef}

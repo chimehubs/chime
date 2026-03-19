@@ -1,259 +1,245 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowUpRight, ArrowDownLeft, Activity as ActivityIcon, LogOut, Home } from 'lucide-react';
+import { Activity as ActivityIcon, ArrowDownLeft, ArrowUpRight, Banknote, ReceiptText, TrendingUp } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { Card } from '../ui/card';
+import { formatCurrency } from '../ui/utils';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
-import AccountCreationPrompt from './AccountCreationPrompt';
-import AccountCreationModal from './AccountCreationModal';
 import TransactionDetailsModal from './TransactionDetailsModal';
+import UserFeaturePageShell from './UserFeaturePageShell';
 import ImageAnnouncementBar from './ImageAnnouncementBar';
-import { FLOW_ANNOUNCEMENT_SLIDES } from './announcementSlides';
+import { PROMOTION_SLIDES } from './announcementSlides';
 
 export default function Activity() {
   const navigate = useNavigate();
-  const { logout, user } = useAuthContext();
+  const { user } = useAuthContext();
   const [darkMode, setDarkMode] = useState(false);
-  const [showAccountCreationPrompt, setShowAccountCreationPrompt] = useState(false);
-  const [showAccountCreationModal, setShowAccountCreationModal] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user needs to create account
   useEffect(() => {
-    if (user?.status === 'UNREGISTERED') {
-      setShowAccountCreationPrompt(true);
-    } else {
-      setShowAccountCreationPrompt(false);
-      setShowAccountCreationModal(false);
-    }
-  }, [user?.status]);
+    const loadData = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
-  // Load transactions on mount
-  useEffect(() => {
-    loadTransactions();
+      const [profile, items] = await Promise.all([
+        supabaseDbService.getProfile(user.id),
+        user.status === 'ACTIVE' ? supabaseDbService.getTransactions(user.id, 300) : Promise.resolve([]),
+      ]);
+
+      setDarkMode(Boolean(profile?.preferences?.darkMode));
+      setTransactions(
+        [...items].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
+      );
+      setLoading(false);
+    };
+
+    loadData();
   }, [user?.id, user?.status]);
 
-  useEffect(() => {
-    const loadPreferences = async () => {
-      if (!user?.id) return;
-      const profile = await supabaseDbService.getProfile(user.id);
-      if (profile?.preferences?.darkMode !== undefined) {
-        setDarkMode(!!profile.preferences.darkMode);
-      }
-    };
-    loadPreferences();
-  }, [user?.id]);
+  const currency = user?.currency || 'USD';
+  const completedTransactions = useMemo(
+    () => transactions.filter((transaction) => transaction.status === 'completed'),
+    [transactions],
+  );
+  const totalCredits = useMemo(
+    () => completedTransactions.filter((transaction) => transaction.type === 'credit').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0),
+    [completedTransactions],
+  );
+  const totalDebits = useMemo(
+    () => completedTransactions.filter((transaction) => transaction.type === 'debit').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0),
+    [completedTransactions],
+  );
+  const failedCount = useMemo(
+    () => transactions.filter((transaction) => transaction.status === 'failed').length,
+    [transactions],
+  );
 
-  const loadTransactions = async () => {
-    if (!user?.id || user.status !== 'ACTIVE') {
-      setLoading(false);
-      return;
-    }
+  const shellCardClass = darkMode
+    ? 'border-white/10 bg-white/5 text-white backdrop-blur-xl shadow-[0_24px_60px_rgba(0,0,0,0.28)]'
+    : 'border-slate-200/80 bg-white/80 text-slate-950 backdrop-blur-xl shadow-[0_24px_60px_rgba(15,23,42,0.12)]';
+  const innerCardClass = darkMode ? 'border-white/10 bg-black/20' : 'border-slate-200/80 bg-white/90';
+  const mutedTextClass = darkMode ? 'text-slate-300' : 'text-slate-600';
 
-    const items = await supabaseDbService.getTransactions(user.id, 200);
-    const sorted = [...items].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    setTransactions(sorted);
-    setLoading(false);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
-  if (!user?.id) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center max-w-md"
-        >
-          <ActivityIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold mb-2">Please Login</h2>
-          <p className="text-muted-foreground mb-6">
-            You need to be logged in to view activity.
-          </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/login')}
-            className="px-6 py-3 bg-[#00b388] text-white rounded-lg font-semibold hover:bg-[#009670] transition-colors shadow-md hover:shadow-lg"
-          >
-            Back to Login
-          </motion.button>
-        </motion.div>
-      </div>
-    );
-  }
+  const summaryCards = [
+    {
+      label: 'Completed Credits',
+      value: formatCurrency(totalCredits, currency).replace(/^US\$/, '$'),
+      detail: 'Settled incoming transactions',
+      icon: ArrowDownLeft,
+      accent: 'from-emerald-500/30 via-teal-500/20 to-cyan-500/20',
+      iconClass: 'text-emerald-100',
+    },
+    {
+      label: 'Completed Debits',
+      value: formatCurrency(totalDebits, currency).replace(/^US\$/, '$'),
+      detail: 'Settled outgoing transactions',
+      icon: ArrowUpRight,
+      accent: 'from-cyan-500/35 via-sky-500/20 to-emerald-400/20',
+      iconClass: 'text-cyan-100',
+    },
+    {
+      label: 'Total Entries',
+      value: String(transactions.length),
+      detail: 'All logged transaction records',
+      icon: ReceiptText,
+      accent: 'from-violet-500/30 via-fuchsia-500/15 to-cyan-400/15',
+      iconClass: 'text-fuchsia-100',
+    },
+    {
+      label: 'Failed Activity',
+      value: String(failedCount),
+      detail: 'Transactions that need attention',
+      icon: TrendingUp,
+      accent: 'from-amber-400/30 via-orange-400/20 to-yellow-300/20',
+      iconClass: 'text-amber-100',
+    },
+  ];
 
   return (
-    <div className={`min-h-screen transition-colors ${darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-background'}`}>
-      <AccountCreationPrompt
-        isOpen={showAccountCreationPrompt}
-        onClose={() => setShowAccountCreationPrompt(false)}
-        onStartCreation={() => {
-          setShowAccountCreationPrompt(false);
-          setShowAccountCreationModal(true);
-        }}
-      />
-      <AccountCreationModal
-        isOpen={showAccountCreationModal}
-        onClose={() => setShowAccountCreationModal(false)}
-        onSuccess={() => {
-          setShowAccountCreationModal(false);
-          setShowAccountCreationPrompt(false);
-          loadTransactions();
-        }}
-      />
+    <UserFeaturePageShell
+      title="Activity"
+      description="Review completed credits, debits, and flagged transaction attempts from one clean timeline."
+      darkMode={darkMode}
+      icon={<ActivityIcon className="h-5 w-5 text-[#00a37a]" />}
+      onBack={() => navigate('/dashboard')}
+    >
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 px-6 py-8 shadow-[0_30px_80px_rgba(0,0,0,0.22)] sm:px-8">
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(4,28,45,0.96),rgba(7,66,58,0.9)_52%,rgba(14,165,233,0.78))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_26%)]" />
+        <motion.div
+          className="absolute right-6 top-6 rounded-[28px] border border-white/10 bg-white/10 p-4 backdrop-blur-xl"
+          animate={{ y: [0, -10, 0], rotate: [0, 5, 0] }}
+          transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Banknote className="h-10 w-10 text-white/90" />
+        </motion.div>
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`sticky top-0 z-10 ${darkMode ? 'bg-[#0d1117]/80 border-b border-[#21262d]' : 'bg-background/80 border-b border-border'} backdrop-blur-lg px-6 py-4`}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold flex items-center gap-2">
-              <motion.div
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                style={{ color: '#06b6d4' }}
-              >
-                <ActivityIcon className="w-6 h-6" />
-              </motion.div>
-              Activity
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">Your transaction history</p>
+        <div className="relative max-w-3xl text-white">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white/80">
+            <ActivityIcon className="h-3.5 w-3.5 text-[#7ef5cf]" />
+            Account Timeline
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleLogout}
-            className={`p-2 rounded-lg transition-colors ${
-              darkMode
-                ? 'hover:bg-[#21262d] text-gray-300 hover:text-white'
-                : 'hover:bg-gray-100 text-gray-600'
-            }`}
-            title="Logout"
-          >
-            <LogOut className="w-5 h-5" />
-          </motion.button>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Every movement on your account, organized in one place.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm text-white/78 sm:text-base">
+            Track incoming funds, outgoing payments, and failed attempts with a clearer transaction timeline and detailed drill-down view.
+          </p>
         </div>
-      </motion.div>
+      </section>
 
-      {/* Transactions List */}
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="mb-6">
-          <ImageAnnouncementBar items={FLOW_ANNOUNCEMENT_SLIDES} className="h-[92px]" />
-        </div>
-        {loading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12 text-muted-foreground"
-          >
-            <span>Loading transactions...</span>
-          </motion.div>
-        ) : transactions.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`text-center py-12 ${
-              darkMode ? 'bg-[#0d1117]' : 'bg-background/50'
-            } rounded-lg`}
-          >
-            <ActivityIcon className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-gray-600' : 'text-gray-300'}`} />
-            <h3 className="text-lg font-semibold mb-2">No transactions yet</h3>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Your transaction history will appear here
-            </p>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-3"
-          >
-            {transactions.map((transaction, index) => (
-              <motion.div
-                key={transaction.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`p-4 rounded-lg border transition-colors ${
-                  darkMode
-                    ? 'bg-[#161b22] border-[#21262d] hover:border-[#30363d]'
-                    : 'bg-white border-border hover:border-gray-300'
-                } cursor-pointer`}
-                onClick={() => setSelectedTransaction(transaction)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <motion.div
-                      whileHover={{ scale: 1.1 }}
-                      className={`p-2 rounded-lg ${
-                        transaction.type === 'debit'
-                          ? 'bg-red-500/10 text-red-600'
-                          : 'bg-green-500/10 text-green-600'
-                      }`}
-                    >
-                      {transaction.type === 'debit' ? (
-                        <ArrowUpRight className="w-5 h-5" />
-                      ) : (
-                        <ArrowDownLeft className="w-5 h-5" />
-                      )}
-                    </motion.div>
+      <ImageAnnouncementBar items={PROMOTION_SLIDES} className="h-[108px]" />
+
+      {loading ? (
+        <Card className={`p-8 text-center ${shellCardClass}`}>
+          <p className={mutedTextClass}>Loading transaction activity...</p>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Card
+                  key={item.label}
+                  className={`relative overflow-hidden border-0 p-5 text-white shadow-[0_24px_50px_rgba(0,0,0,0.18)] ${darkMode ? 'bg-[#071b18]' : 'bg-slate-950'}`}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${item.accent}`} />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_35%)]" />
+                  <div className="relative flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-semibold capitalize">{transaction.description}</p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
-                        {transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : ''}{' '}
-                        {transaction.created_at ? new Date(transaction.created_at).toLocaleTimeString() : ''}
-                      </p>
+                      <p className="text-sm text-white/70">{item.label}</p>
+                      <p className="mt-3 text-3xl font-semibold tracking-tight">{item.value}</p>
+                      <p className="mt-2 text-xs text-white/75">{item.detail}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
+                      <Icon className={`h-5 w-5 ${item.iconClass}`} />
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-semibold ${
-                      transaction.type === 'debit'
-                        ? 'text-red-600'
-                        : 'text-green-600'
-                    }`}>
-                      {transaction.type === 'debit' ? '-' : '+'}
-                      ${Number(transaction.amount).toFixed(2)}
-                    </p>
-                    <p className={`text-xs ${
-                      darkMode ? 'text-gray-500' : 'text-gray-600'
-                    }`}>
-                      {transaction.currency || user?.currency || 'USD'}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </div>
+                </Card>
+              );
+            })}
+          </div>
 
-      {/* Home Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => navigate('/dashboard')}
-        className="fixed bottom-6 right-6 p-4 bg-[#00b388] text-white rounded-full shadow-lg hover:shadow-xl hover:bg-[#009670] transition-all"
-        title="Back to Dashboard"
-      >
-        <Home className="w-6 h-6" />
-      </motion.button>
+          <Card className={`p-6 ${shellCardClass}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Transaction Timeline</h2>
+                <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                  Tap any row to see the full transaction details.
+                </p>
+              </div>
+              <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white/75">
+                {transactions.length} entries
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3 max-h-[640px] overflow-y-auto pr-1">
+              {transactions.length === 0 ? (
+                <div className={`rounded-3xl border p-6 text-center ${innerCardClass}`}>
+                  <ActivityIcon className={`mx-auto mb-4 h-12 w-12 ${darkMode ? 'text-slate-500' : 'text-slate-300'}`} />
+                  <p className="text-lg font-semibold">No transactions yet</p>
+                  <p className={`mt-2 text-sm ${mutedTextClass}`}>Your account activity will appear here as soon as transactions are recorded.</p>
+                </div>
+              ) : (
+                transactions.map((transaction) => {
+                  const isDebit = transaction.type === 'debit';
+                  const displayAmount = formatCurrency(Math.abs(Number(transaction.amount || 0)), transaction.currency || currency).replace(/^US\$/, '$');
+                  const statusClass =
+                    transaction.status === 'completed'
+                      ? 'bg-emerald-500/15 text-emerald-200'
+                      : transaction.status === 'pending'
+                        ? 'bg-amber-500/15 text-amber-200'
+                        : 'bg-red-500/15 text-red-200';
+
+                  return (
+                    <button
+                      key={transaction.id}
+                      type="button"
+                      onClick={() => setSelectedTransaction(transaction)}
+                      className={`w-full rounded-3xl border p-4 text-left transition-transform hover:-translate-y-0.5 ${innerCardClass}`}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={`rounded-2xl border border-white/10 p-3 ${isDebit ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                            {isDebit ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold">{transaction.description}</p>
+                            <p className={`mt-1 text-xs ${mutedTextClass}`}>
+                              {transaction.created_at ? new Date(transaction.created_at).toLocaleString() : 'No timestamp'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="sm:text-right">
+                          <p className={`font-semibold ${isDebit ? 'text-red-400' : 'text-emerald-300'}`}>
+                            {isDebit ? '-' : '+'}{displayAmount}
+                          </p>
+                          <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+                            {transaction.status}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
 
       <TransactionDetailsModal
         isOpen={!!selectedTransaction}
         transaction={selectedTransaction}
-        fallbackCurrency={user?.currency || 'USD'}
+        fallbackCurrency={currency}
         onClose={() => setSelectedTransaction(null)}
       />
-    </div>
+    </UserFeaturePageShell>
   );
 }

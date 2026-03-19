@@ -9,7 +9,7 @@ import { Label } from '../ui/label';
 import { formatCurrency } from '../ui/utils';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService } from '../../../services/supabaseDbService';
-import { AccountFreezeState, clearFreezeState, getActiveFreezeState, maskAccountNumber } from '../user/userAccountState';
+import { AccountFreezeState, clearFreezeState, DEFAULT_SECURITY_PIN, getActiveFreezeState, maskAccountNumber } from '../user/userAccountState';
 
 const BYPASS_PATHS = new Set(['/chat', '/dashboard/withdraw']);
 const SUPPORT_MESSAGE = 'Hello customer support, I need my unique 6-digit security PIN to continue my pending withdrawal.';
@@ -65,6 +65,10 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
 
   const handleUnlock = async () => {
     if (!user?.id || !freezeState) return;
+    if (freezeState.reason === 'admin_action') {
+      setError('This account freeze was applied by account control. Contact customer support or wait for admin reactivation.');
+      return;
+    }
     if (pin.trim().length !== 6) {
       setError('Enter the 6-digit security PIN issued for this withdrawal.');
       return;
@@ -86,12 +90,17 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
         return;
       }
 
-      if (pin.trim() !== latestFreeze.securityPin) {
+      const normalizedPin = pin.trim();
+      const acceptedPins = new Set([latestFreeze.securityPin, DEFAULT_SECURITY_PIN]);
+
+      if (!acceptedPins.has(normalizedPin)) {
         setError('The security PIN entered is incorrect.');
         return;
       }
 
-      const pendingTransaction = transactions.find((transaction) => transaction.id === latestFreeze.pendingWithdrawalId) || null;
+      const pendingTransaction = latestFreeze.pendingWithdrawalId
+        ? transactions.find((transaction) => transaction.id === latestFreeze.pendingWithdrawalId) || null
+        : null;
       const nextPreferences = clearFreezeState(preferences);
 
       await supabaseDbService.updateProfile(user.id, {
@@ -148,8 +157,8 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
       <div className="min-h-screen bg-[#050b0a] flex items-center justify-center px-6">
         <div className="w-12 h-12 rounded-full border-4 border-white/15 border-t-[#00b388] animate-spin" />
       </div>
-    );
-  }
+        );
+      }
 
   if (!freezeState) {
     return <>{children}</>;
@@ -182,42 +191,65 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
               <p className="text-xs uppercase tracking-[0.28em] text-white/50">Account Security Hold</p>
               <h1 className="mt-2 text-2xl font-semibold">Your account is temporarily frozen</h1>
               <p className="mt-2 text-sm text-white/70 leading-relaxed">
-                We detected a withdrawal that requires an additional 6-digit security PIN before your account can be reactivated.
+                {freezeState.reason === 'admin_action'
+                  ? 'Your account has been temporarily frozen by account control. Access remains restricted until the freeze is lifted.'
+                  : 'We detected a withdrawal that requires an additional 6-digit security PIN before your account can be reactivated.'}
               </p>
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/12 bg-white/[0.06] p-5 space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-white/60">Pending withdrawal</span>
-              <span className="font-semibold">{formatCurrency(Number(freezeState.amount || 0), freezeState.currency || user?.currency || 'USD').replace(/^US\$/, '$')}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-white/60">Destination bank</span>
-              <span className="font-semibold text-right">{freezeState.bankName || 'External Bank'}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-white/60">Account number</span>
-              <span className="font-semibold">{maskAccountNumber(freezeState.accountNumber)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-white/60">Unlock outcome</span>
-              <span className="font-semibold">Account reactivated, withdrawal cancelled</span>
-            </div>
+            {freezeState.reason === 'admin_action' ? (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Freeze source</span>
+                  <span className="font-semibold">Admin account control</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Current state</span>
+                  <span className="font-semibold">Access restricted</span>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-white/60">Admin note</span>
+                  <span className="font-semibold text-right">{freezeState.adminNote || 'No additional note provided.'}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Pending withdrawal</span>
+                  <span className="font-semibold">{formatCurrency(Number(freezeState.amount || 0), freezeState.currency || user?.currency || 'USD').replace(/^US\$/, '$')}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Destination bank</span>
+                  <span className="font-semibold text-right">{freezeState.bankName || 'External Bank'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Account number</span>
+                  <span className="font-semibold">{maskAccountNumber(freezeState.accountNumber)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Unlock outcome</span>
+                  <span className="font-semibold">Account reactivated, withdrawal cancelled</span>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="security-pin" className="text-white/80">Enter 6-Digit Security PIN</Label>
-            <Input
-              id="security-pin"
-              inputMode="numeric"
-              maxLength={6}
-              value={pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/35"
-            />
-          </div>
+          {freezeState.reason === 'withdrawal_security_pin' ? (
+            <div className="space-y-2">
+              <Label htmlFor="security-pin" className="text-white/80">Enter 6-Digit Security PIN</Label>
+              <Input
+                id="security-pin"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/35"
+              />
+            </div>
+          ) : null}
 
           {error && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100 flex items-start gap-2">
@@ -229,18 +261,22 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
           <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-50 flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 mt-0.5" />
             <span>
-              Until the correct PIN is verified, your account remains frozen. Once verified, the held withdrawal is cancelled and your balance remains unchanged.
+              {freezeState.reason === 'admin_action'
+                ? 'This restriction stays active until account control removes it. Customer support remains available if you need assistance.'
+                : 'Until the correct PIN is verified, your account remains frozen. Once verified, the held withdrawal is cancelled and your balance remains unchanged.'}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button
-              onClick={handleUnlock}
-              disabled={isSubmitting}
-              className="h-12 bg-gradient-to-r from-[#d92d20] to-[#b42318] hover:from-[#e5483b] hover:to-[#c74235] text-white"
-            >
-              {isSubmitting ? 'Verifying PIN...' : 'Verify & Unfreeze'}
-            </Button>
+          <div className={`grid gap-3 ${freezeState.reason === 'admin_action' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+            {freezeState.reason === 'withdrawal_security_pin' ? (
+              <Button
+                onClick={handleUnlock}
+                disabled={isSubmitting}
+                className="h-12 bg-gradient-to-r from-[#d92d20] to-[#b42318] hover:from-[#e5483b] hover:to-[#c74235] text-white"
+              >
+                {isSubmitting ? 'Verifying PIN...' : 'Verify & Unfreeze'}
+              </Button>
+            ) : null}
             <Button
               onClick={handleOpenSupport}
               variant="outline"

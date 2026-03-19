@@ -109,10 +109,13 @@ export default function Chat() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
-        (payload) => {
+        async (payload) => {
           const msg = payload.new as ChatMessage;
           appendMessage(msg);
           setHasExistingMessages(true);
+          if (msg.sender_type === 'admin' && user?.id) {
+            await supabaseDbService.markThreadRead(threadId, user.id);
+          }
         }
       )
       .subscribe();
@@ -120,7 +123,7 @@ export default function Chat() {
     return () => {
       client.removeChannel(channel);
     };
-  }, [threadId]);
+  }, [threadId, appendMessage, user?.id]);
 
   useEffect(() => {
     if (prefillApplied.current) return;
@@ -186,6 +189,7 @@ export default function Chat() {
 
       appendMessage(saved);
       setHasExistingMessages(true);
+      await supabaseDbService.markThreadRead(thread.id, user.id);
       setInput('');
     } finally {
       setIsSending(false);
@@ -228,6 +232,7 @@ export default function Chat() {
 
         appendMessage(saved);
         setHasExistingMessages(true);
+        await supabaseDbService.markThreadRead(thread.id, user.id);
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
         setIsUploading(false);
@@ -240,10 +245,21 @@ export default function Chat() {
   return (
     <div className={`flex flex-col h-screen transition-colors ${
       darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-white'
-    }`}>
+    } relative overflow-hidden`}>
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')",
+            filter: darkMode ? 'brightness(0.32) saturate(0.78)' : 'brightness(0.78) saturate(0.82)',
+          }}
+        />
+        <div className={`absolute inset-0 ${darkMode ? 'bg-[linear-gradient(180deg,rgba(13,17,23,0.92),rgba(13,17,23,0.84),rgba(13,17,23,0.94))]' : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(247,250,249,0.82),rgba(255,255,255,0.92))]'}`} />
+      </div>
       {/* Chat Header */}
       <motion.div className={`sticky top-0 z-10 px-4 py-4 flex items-center gap-4 ${
-        darkMode ? 'bg-[#0d1117]/80 border-[#21262d]' : 'bg-white border-b border-border'
+        darkMode ? 'bg-[#0d1117]/70 border-[#21262d]' : 'bg-white/70 border-b border-border'
       } border-b`}>
         <motion.button 
           onClick={() => navigate(getBackPath())}
@@ -276,9 +292,7 @@ export default function Chat() {
         </div>
       </motion.div>
       {/* Messages Area */}
-      <div className={`flex-1 overflow-y-auto px-6 py-6 ${
-        darkMode ? 'bg-[#0d1117]' : 'bg-white'
-      }`}>
+      <div className="relative flex-1 overflow-y-auto px-6 py-6">
         {accountFrozen && (
           <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
             darkMode
@@ -416,7 +430,7 @@ export default function Chat() {
       </div>
       {/* Input Area */}
       <div className={`sticky bottom-0 px-4 py-4 shadow-lg ${
-        darkMode ? 'bg-[#0d1117]/80 border-[#21262d]' : 'bg-white border-t border-border'
+        darkMode ? 'bg-[#0d1117]/72 border-[#21262d]' : 'bg-white/72 border-t border-border'
       } border-t`}>
         <div className="flex items-end gap-2">
           <input

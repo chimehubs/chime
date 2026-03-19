@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { CircleCheck, Dice5, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '../ui/button';
@@ -13,9 +14,17 @@ import { BettingTransferRecord, calculateCompletedBalance, getPreferenceArray } 
 
 const SPORTSBOOKS = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars Sportsbook', 'bet365', 'ESPN BET'];
 const QUICK_AMOUNTS = [25, 50, 100, 200, 500, 1000];
+const BETTING_HERO_SLIDES = [
+  'https://cdn.wmnf.org/wp-content/uploads/2023/11/Sports-betting-gambling-by-wildpixel-via-iStock-for-WMNF-News-scaled.jpg',
+  'https://sandiegobeer.news/wp-content/uploads/2025/02/sports-betting-on-toto-sites-1-770x470.jpg',
+  'https://pavestoneslegal.com/wp-content/uploads/2019/05/sports-betting.jpg',
+  'https://londonincmagazine.ca/wp-content/uploads/2025/04/Main-28.jpg',
+  'https://www.talkrugbyunion.co.uk/wp-content/uploads/2024/08/0pener.jpg',
+];
 
 export default function Betting() {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
   const [profilePreferences, setProfilePreferences] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<BettingTransferRecord[]>([]);
@@ -25,11 +34,13 @@ export default function Betting() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [processingMessage, setProcessingMessage] = useState('');
 
   const [provider, setProvider] = useState(SPORTSBOOKS[0]);
   const [walletId, setWalletId] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [heroSlide, setHeroSlide] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -40,7 +51,7 @@ export default function Betting() {
 
       const [profile, transactions] = await Promise.all([
         supabaseDbService.getProfile(user.id),
-        supabaseDbService.getTransactions(user.id, 500),
+        supabaseDbService.getTransactions(user.id, 1000),
       ]);
 
       const preferences = profile?.preferences || {};
@@ -54,6 +65,14 @@ export default function Betting() {
 
     loadData();
   }, [user?.id, user?.currency]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeroSlide((current) => (current + 1) % BETTING_HERO_SLIDES.length);
+    }, 4200);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   const amountNumber = useMemo(() => Number(amount || 0), [amount]);
   const canSubmit =
@@ -84,6 +103,7 @@ export default function Betting() {
     setSubmitting(true);
     setError('');
     setSuccess('');
+    setProcessingMessage('Connecting to betting wallet...');
 
     try {
       const account = await supabaseDbService.getAccountByUser(user.id);
@@ -93,65 +113,50 @@ export default function Betting() {
       }
 
       const transferAmount = Number(amountNumber.toFixed(2));
-      const createdAt = new Date().toISOString();
-      const record: BettingTransferRecord = {
-        id: `bet_${Date.now()}`,
-        provider,
-        walletId: walletId.trim(),
-        amount: transferAmount,
-        note: note.trim() || undefined,
-        createdAt,
-        status: 'completed',
-      };
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
 
-      const transaction = await supabaseDbService.createTransaction({
+      const failedTransaction = await supabaseDbService.createTransaction({
         user_id: user.id,
         account_id: account.id,
         type: 'debit',
         amount: transferAmount,
         description: `Betting transfer to ${provider}`,
         currency: account.currency,
-        status: 'completed',
+        status: 'failed',
         metadata: {
           feature: 'betting',
           provider,
-          wallet_id: record.walletId,
-          note: record.note || null,
+          wallet_id: walletId.trim(),
+          note: note.trim() || null,
+          failure_reason: 'wallet_funding_failed_try_again',
         },
       });
 
-      if (!transaction) {
-        setError('The betting transfer could not be completed.');
+      if (!failedTransaction) {
+        setError('Wallet funding failed. Please try again.');
         return;
       }
 
       await Promise.all([
+        supabaseDbService.createNotification({
+          user_id: user.id,
+          title: 'Betting Wallet Funding Failed',
+          message: `Wallet funding failed for ${provider}. Please try again.`,
+          type: 'error',
+          read: false,
+          path: '/dashboard/betting',
+        }),
         supabaseDbService.createActivity({
           user_id: user.id,
           type: 'betting',
-          description: `Funded ${provider} betting wallet`,
+          description: `Betting wallet funding failed for ${provider}`,
           amount: transferAmount,
-        }),
-        supabaseDbService.createNotification({
-          user_id: user.id,
-          title: 'Betting Wallet Funded',
-          message: `${formatCurrency(transferAmount, account.currency)} was sent to your ${provider} wallet.`,
-          type: 'success',
-          read: false,
-          path: '/activity',
         }),
       ]);
 
-      const nextTransfers = [record, ...history].slice(0, 20);
-      setHistory(nextTransfers);
-      setBalance((current) => current - transferAmount);
-      await persistTransfers(nextTransfers);
-
-      setSuccess(`Transferred ${formatCurrency(transferAmount, account.currency)} to ${provider}.`);
-      setWalletId('');
-      setAmount('');
-      setNote('');
+      setError('Wallet funding failed. Please try again.');
     } finally {
+      setProcessingMessage('');
       setSubmitting(false);
     }
   };
@@ -164,6 +169,27 @@ export default function Betting() {
       icon={<Dice5 className="w-5 h-5 text-[#00a37a]" />}
       onBack={() => navigate('/dashboard')}
     >
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 h-[220px] sm:h-[260px] lg:h-[300px] shadow-[0_30px_80px_rgba(0,0,0,0.22)]">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={BETTING_HERO_SLIDES[heroSlide]}
+            initial={{ opacity: 0.15, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0.15, scale: 0.98 }}
+            transition={{ duration: 0.95, ease: 'easeInOut' }}
+            className="absolute inset-0"
+          >
+            <img
+              src={BETTING_HERO_SLIDES[heroSlide]}
+              alt="Betting hero slide"
+              className="h-full w-full object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+        </AnimatePresence>
+      </section>
+
       {loading ? (
         <Card className={`p-8 text-center ${darkMode ? 'bg-[#161b22] border-[#21262d]' : ''}`}>
           <p className="text-muted-foreground">Loading betting transfers...</p>
@@ -267,6 +293,16 @@ export default function Betting() {
               </div>
             )}
 
+            {submitting && (
+              <div className={`rounded-2xl border px-4 py-4 flex items-center gap-3 ${darkMode ? 'border-[#1d3b36] bg-[#0d1715]' : 'border-[#bde9da] bg-[#f2fbf8]'}`}>
+                <div className="h-5 w-5 rounded-full border-2 border-[#00b388]/30 border-t-[#00b388] animate-spin" />
+                <div>
+                  <p className="text-sm font-semibold">Processing wallet funding</p>
+                  <p className="text-xs text-muted-foreground">{processingMessage || 'Please wait...'}</p>
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit || submitting}
@@ -303,4 +339,3 @@ export default function Betting() {
     </UserFeaturePageShell>
   );
 }
-

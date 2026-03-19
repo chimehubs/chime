@@ -34,6 +34,7 @@ import { OnboardingGuide } from './OnboardingGuide';
 import ImageAnnouncementBar from './ImageAnnouncementBar';
 import { HEADER_NEWS_SLIDES, PROMOTION_SLIDES } from './announcementSlides';
 import TransactionDetailsModal from './TransactionDetailsModal';
+import FloatingSupportButton from './FloatingSupportButton';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
@@ -243,6 +244,7 @@ export default function Dashboard() {
   const [greeting, setGreeting] = useState('Welcome');
   const [savingsBalance, setSavingsBalance] = useState(0);
   const [showDashboardSticker, setShowDashboardSticker] = useState(true);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(true);
 
   useEffect(() => {
     const computeGreeting = () => {
@@ -302,8 +304,7 @@ export default function Dashboard() {
   }, [user?.id, user?.status]);
 
   useEffect(() => {
-    const storageKey = `dashboard_sticker_closed_${user?.id || 'guest'}`;
-    setShowDashboardSticker(localStorage.getItem(storageKey) !== 'true');
+    setShowDashboardSticker(true);
   }, [user?.id]);
 
   // Handle "Create Account" button click on the prompt
@@ -323,7 +324,7 @@ export default function Dashboard() {
         setTransactions([]);
         return;
       }
-      const items = await supabaseDbService.getTransactions(user.id, 200);
+      const items = await supabaseDbService.getTransactions(user.id, 1000);
       const sorted = [...items].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
       setTransactions(sorted);
     };
@@ -351,8 +352,6 @@ export default function Dashboard() {
   };
 
   const handleCloseDashboardSticker = () => {
-    const storageKey = `dashboard_sticker_closed_${user?.id || 'guest'}`;
-    localStorage.setItem(storageKey, 'true');
     setShowDashboardSticker(false);
   };
 
@@ -372,7 +371,7 @@ export default function Dashboard() {
 
   // Mark all chat messages as read and navigate to chat
   const handleNavigateToChat = () => {
-    // Navigate to chat
+    setChatMessageCount(0);
     navigate('/chat', { state: { from: '/dashboard' } });
   };
 
@@ -398,22 +397,13 @@ export default function Dashboard() {
       const amount = Number(tx.amount || 0);
       return tx.type === 'credit' ? total + amount : total - amount;
     }, 0);
+    setIsBalanceLoading(true);
+    const timer = window.setTimeout(() => {
+      setBalance(targetBalance);
+      setIsBalanceLoading(false);
+    }, 2000);
 
-    let start = 0;
-    const duration = 1000;
-    const increment = targetBalance > 0 ? targetBalance / (duration / 16) : 0;
-
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= targetBalance) {
-        setBalance(targetBalance);
-        clearInterval(timer);
-      } else {
-        setBalance(start);
-      }
-    }, 16);
-
-    return () => clearInterval(timer);
+    return () => window.clearTimeout(timer);
   }, [user?.id, transactions]);
 
   // Calculate spending, income, and chart data from transactions
@@ -486,7 +476,7 @@ export default function Dashboard() {
   const renderContent = () => {
     if (currentView === 'home') {
       return (
-        <div className="px-6 pb-44 md:pb-28 space-y-6">
+        <div className="px-6 pb-52 md:pb-28 space-y-6">
           {/* Balance Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -503,7 +493,12 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <p className="text-white/85 text-sm mb-1">Available Balance {userAccounts.length > 0 ? `(${userAccounts[0]?.account_number})` : ''}</p>
                   <div className="flex flex-wrap items-center gap-3">
-                    {balanceVisible ? (
+                    {isBalanceLoading ? (
+                      <div className="flex items-center gap-3 text-white/90">
+                        <div className="h-7 w-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                        <span className="text-sm font-medium">Loading balance...</span>
+                      </div>
+                    ) : balanceVisible ? (
                       <motion.h2
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -835,7 +830,7 @@ export default function Dashboard() {
       );
     } else if (currentView === 'activity') {
       return (
-        <div className="px-6 pb-44 md:pb-28 space-y-6">
+        <div className="px-6 pb-52 md:pb-28 space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -872,7 +867,7 @@ export default function Dashboard() {
       );
     } else if (currentView === 'profile') {
       return (
-        <div className="px-6 pb-44 md:pb-28 space-y-6">
+        <div className="px-6 pb-52 md:pb-28 space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -915,7 +910,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className={`dashboard-container relative isolate overflow-hidden min-h-screen transition-colors ${darkMode ? 'dark' : ''} ${darkMode ? 'text-white' : 'bg-[#f2f5f3] text-[#0f1720]'}`}>
+    <div className={`dashboard-container relative isolate overflow-x-hidden min-h-screen transition-colors ${darkMode ? 'dark' : ''} ${darkMode ? 'text-white' : 'bg-[#f2f5f3] text-[#0f1720]'}`}>
       {currentView === 'home' && <FloatingDashboardIcons darkMode={darkMode} />}
       {currentView === 'home' && (
         <FloatingDashboardSticker
@@ -923,151 +918,222 @@ export default function Dashboard() {
           onClose={handleCloseDashboardSticker}
         />
       )}
+      <FloatingSupportButton
+        userId={user?.id}
+        darkMode={darkMode}
+        className={currentView === 'home' ? 'sm:bottom-32' : ''}
+      />
       {/* NotificationDropdown removed from under header bar */}
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className={`sticky top-0 z-10 ${darkMode ? 'bg-[#0d1117]/80 border-b border-[#21262d]' : 'bg-[#f2f5f3]/95 border-b border-[#dbe7e2]'} backdrop-blur-lg px-6 py-4`}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className={`text-sm ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>{greeting},</p>
-            <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-[#0f1720]'} truncate hidden sm:block`}>
-              {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
-            </h1>
-            <h1 className={`text-lng font-semibold ${darkMode ? 'text-white' : 'text-[#0f1720]'} truncate sm:hidden`}>
-              {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
-            </h1>
+      <div className={`fixed inset-x-0 top-0 z-30 ${darkMode ? 'bg-[#0d1117]/88 border-b border-[#21262d]' : 'bg-[#f2f5f3]/96 border-b border-[#dbe7e2]'} backdrop-blur-lg`}>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="px-6 py-4"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${darkMode ? 'text-[#8b949e]' : 'text-[#5f7a72]'}`}>{greeting},</p>
+              <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-[#0f1720]'} truncate hidden sm:block`}>
+                {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
+              </h1>
+              <h1 className={`text-lng font-semibold ${darkMode ? 'text-white' : 'text-[#0f1720]'} truncate sm:hidden`}>
+                {(user?.status || '').toString().toUpperCase() === 'ACTIVE' ? (user?.name?.split(' ')[0] || 'User') : 'User'}
+              </h1>
+            </div>
+            <div className="flex items-center gap-3" data-tour="header-icons">
+              {/* Chat Icon */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md ${darkMode ? 'bg-[#161b22]' : 'bg-white border border-[#dbe7e2]'}`}
+                title="Customer Care Chat"
+                onClick={handleNavigateToChat}
+              >
+                <MessageCircle className="w-5 h-5 text-[#00a37a]" />
+                {chatMessageCount > 0 && (
+                  <motion.div 
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-xs text-white font-semibold">{chatMessageCount > 9 ? '9+' : chatMessageCount}</span>
+                  </motion.div>
+                )}
+              </motion.button>
+              {/* Notification Bell Icon */}
+              <NotificationDropdown userId={user?.id} />
+              {/* Dark Mode Toggle */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 3, repeat: Infinity, delay: 0.3 }}
+                onClick={handleToggleDarkMode}
+                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md ${darkMode ? 'bg-[#161b22]' : 'bg-white border border-[#dbe7e2]'}`}
+                title="Toggle dark mode"
+              >
+                {darkMode ? (
+                  <Moon className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <Sun className="w-5 h-5 text-muted-foreground" />
+                )}
+              </motion.button>
+              {/* Profile Icon */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 3, repeat: Infinity, delay: 0.6 }}
+                onClick={() => navigate('/profile')}
+                className="relative rounded-full transition-transform shadow-sm hover:shadow-md"
+                title="Profile"
+              >
+                <Avatar className="w-10 h-10 border-2 border-[#dbe7e2] hover:border-[#9ddfcb]">
+                  <AvatarImage 
+                    src={user?.avatar}
+                    alt={user?.name} 
+                  />
+                  <AvatarFallback className="bg-[#00a37a] text-white font-semibold">
+                    {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </motion.button>
+              {/* Logout button removed as requested */}
+            </div>
           </div>
-          <div className="flex items-center gap-3" data-tour="header-icons">
-            {/* Chat Icon */}
-            <motion.button
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ y: [0, -2, 0] }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md ${darkMode ? 'bg-[#161b22]' : 'bg-white border border-[#dbe7e2]'}`}
-              
-              title="Customer Care Chat"
-              onClick={handleNavigateToChat}
-            >
-              <MessageCircle className="w-5 h-5 text-[#00a37a]" />
-              {chatMessageCount > 0 && (
-                <motion.div 
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-                >
-                  <span className="text-xs text-white font-semibold">{chatMessageCount > 9 ? '9+' : chatMessageCount}</span>
-                </motion.div>
-              )}
-            </motion.button>
-            {/* Notification Bell Icon */}
-            <NotificationDropdown userId={user?.id} />
-            {/* Dark Mode Toggle */}
-            <motion.button
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ y: [0, -2, 0] }}
-              transition={{ duration: 3, repeat: Infinity, delay: 0.3 }}
-              onClick={handleToggleDarkMode}
-              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm hover:shadow-md ${darkMode ? 'bg-[#161b22]' : 'bg-white border border-[#dbe7e2]'}`}
-              
-              title="Toggle dark mode"
-            >
-              {darkMode ? (
-                <Moon className="w-5 h-5 text-muted-foreground" />
-              ) : (
-                <Sun className="w-5 h-5 text-muted-foreground" />
-              )}
-            </motion.button>
-            {/* Profile Icon */}
-            <motion.button
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ y: [0, -2, 0] }}
-              transition={{ duration: 3, repeat: Infinity, delay: 0.6 }}
-              onClick={() => navigate('/profile')}
-              className="relative rounded-full transition-transform shadow-sm hover:shadow-md"
-              title="Profile"
-            >
-              <Avatar className="w-10 h-10 border-2 border-[#dbe7e2] hover:border-[#9ddfcb]">
-                <AvatarImage 
-                  src={user?.avatar}
-                  alt={user?.name} 
-                />
-                <AvatarFallback className="bg-[#00a37a] text-white font-semibold">
-                  {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-            </motion.button>
-            {/* Logout button removed as requested */}
-          </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
 
       {/* Content */}
-      <div className="relative z-[1] pt-6">
+      <div className="relative z-[1] pt-24">
         {renderContent()}
       </div>
 
+      <div
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[19] h-32 md:hidden"
+        style={{
+          background: darkMode
+            ? 'linear-gradient(180deg, rgba(13,17,23,0), rgba(13,17,23,0.92) 54%, rgba(13,17,23,1) 100%)'
+            : 'linear-gradient(180deg, rgba(242,245,243,0), rgba(242,245,243,0.92) 54%, rgba(242,245,243,1) 100%)',
+        }}
+      />
+
       {/* Bottom Navigation */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className={`fixed bottom-0 left-0 right-0 z-20 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-[#dbe7e2]'} border-t px-6 py-4 md:hidden`}
-      >
-        <div className="flex items-center justify-around">
-          {[
-            { icon: Home, label: 'Home', action: () => setCurrentView('home'), nav: false, color: '#00a37a', bgColor: '#e9f8f3' },
-            { icon: ActivityIcon, label: 'Activity', action: () => setCurrentView('activity'), nav: false, color: '#00a37a', bgColor: '#e9f8f3' },
-            { icon: PiggyBank, label: 'Savings', action: () => navigate('/savings'), nav: true, color: '#00a37a', bgColor: '#e9f8f3' },
-            { icon: UserCircle, label: 'Profile', action: () => navigate('/profile'), nav: true, color: '#00a37a', bgColor: '#e9f8f3' }
-          ].map((item, index) => (
-            <motion.button
-              key={item.label}
-              onClick={item.action}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ y: [0, -2, 0] }}
-              transition={{ duration: 2.5, repeat: Infinity, delay: index * 0.3 }}
-              className="flex flex-col items-center gap-1 transition-colors p-2 rounded-lg shadow-sm hover:shadow-md"
-            >
-              <motion.div
-                style={{ backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : item.bgColor }}
-                className="w-10 h-10 rounded-lg flex items-center justify-center"
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex justify-center px-4 md:hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 22, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className={`pointer-events-auto relative w-full max-w-[420px] overflow-hidden rounded-[30px] border px-2 py-2 shadow-[0_20px_45px_rgba(2,26,22,0.22)] backdrop-blur-2xl ${
+            darkMode ? 'border-white/10' : 'border-white/70'
+          }`}
+          style={{
+            background: darkMode
+              ? 'linear-gradient(135deg, rgba(10,17,23,0.92), rgba(11,47,39,0.82))'
+              : 'linear-gradient(135deg, rgba(255,255,255,0.92), rgba(227,247,239,0.9))',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: darkMode
+                ? 'radial-gradient(circle at top, rgba(255,255,255,0.09), transparent 54%)'
+                : 'radial-gradient(circle at top, rgba(255,255,255,0.78), transparent 52%)',
+            }}
+          />
+          <div className="relative grid grid-cols-5 gap-1">
+            {[
+              {
+                icon: Home,
+                label: 'Home',
+                action: () => setCurrentView('home'),
+                active: currentView === 'home',
+              },
+              {
+                icon: ActivityIcon,
+                label: 'Activity',
+                action: () => setCurrentView('activity'),
+                active: currentView === 'activity',
+              },
+              {
+                icon: PiggyBank,
+                label: 'Savings',
+                action: () => navigate('/savings'),
+                active: false,
+              },
+              {
+                icon: CreditCard,
+                label: 'Cards',
+                action: () => navigate('/dashboard/cards'),
+                active: false,
+              },
+              {
+                icon: UserCircle,
+                label: 'Profile',
+                action: () => navigate('/profile'),
+                active: false,
+              },
+            ].map((item, index) => (
+              <motion.button
+                key={item.label}
+                onClick={item.action}
+                whileTap={{ scale: 0.94 }}
+                animate={item.active ? { y: [0, -2, 0] } : { y: 0 }}
+                transition={item.active ? { duration: 2.8, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
+                className={`group relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-[22px] px-1 py-2 transition-all ${
+                  item.active
+                    ? darkMode
+                      ? 'bg-[linear-gradient(135deg,rgba(0,179,136,0.28),rgba(20,184,166,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_28px_rgba(0,0,0,0.22)]'
+                      : 'bg-[linear-gradient(135deg,rgba(0,179,136,0.18),rgba(20,184,166,0.12))] shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_12px_24px_rgba(0,163,122,0.14)]'
+                    : darkMode
+                      ? 'hover:bg-white/6'
+                      : 'hover:bg-white/60'
+                }`}
               >
-                <motion.div whileHover={{ rotate: 10, scale: 1.15 }}>
-                  <item.icon className="w-5 h-5" style={{ color: item.color }} />
+                <motion.div
+                  whileHover={{ rotate: item.active ? 0 : 6, scale: item.active ? 1 : 1.06 }}
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
+                    item.active
+                      ? darkMode
+                        ? 'border-white/10 bg-white/10'
+                        : 'border-white/80 bg-white/80'
+                      : darkMode
+                        ? 'border-transparent bg-white/6'
+                        : 'border-transparent bg-white/55'
+                  }`}
+                >
+                  <item.icon
+                    className={`h-5 w-5 transition-colors ${
+                      item.active
+                        ? 'text-[#7ef0ca]'
+                        : darkMode
+                          ? 'text-[#d7ece5]'
+                          : 'text-[#166534]'
+                    }`}
+                  />
                 </motion.div>
-              </motion.div>
-              <span className={`text-xs font-medium ${darkMode ? 'text-[#e8eaed]' : 'text-[#1f3b36]'}`}>{item.label}</span>
-            </motion.button>
-          ))}
-          {/* Cards Navigation Button */}
-          <motion.button
-            onClick={() => navigate('/dashboard/cards')}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            animate={{ y: [0, -2, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity, delay: 1.2 }}
-            className="flex flex-col items-center gap-1 transition-colors cursor-pointer p-2 rounded-lg shadow-sm hover:shadow-md"
-          >
-            <motion.div
-              style={{ backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#e9f8f3' }}
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-            >
-              <motion.div whileHover={{ rotate: 10, scale: 1.15 }}>
-                <CreditCard className="w-5 h-5" style={{ color: '#00a37a' }} />
-              </motion.div>
-            </motion.div>
-            <span className={`text-xs font-medium ${darkMode ? 'text-[#e8eaed]' : 'text-[#1f3b36]'}`}>Cards</span>
-          </motion.button>
-        </div>
-      </motion.div>
+                <span
+                  className={`truncate text-[11px] font-medium tracking-[0.01em] ${
+                    item.active
+                      ? darkMode
+                        ? 'text-white'
+                        : 'text-[#0f3b33]'
+                      : darkMode
+                        ? 'text-[#b7c9c4]'
+                        : 'text-[#365b52]'
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
 
       {/* Account Creation Prompt - Show initial prompt card awaiting user to click "Create Account" */}
       {showAccountCreationPrompt && (
@@ -1088,7 +1154,7 @@ export default function Dashboard() {
           // Refresh dashboard data after account creation
           if (user?.id) {
             supabaseDbService.getAccounts(user.id).then(setUserAccounts);
-            supabaseDbService.getTransactions(user.id, 200).then((items) => {
+            supabaseDbService.getTransactions(user.id, 1000).then((items) => {
               const sorted = [...items].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
               setTransactions(sorted);
             });

@@ -46,7 +46,9 @@ export default function AdminWithdrawals() {
       const accountById = new Map(accounts.map((a) => [a.id, a]));
 
       const balanceMap = new Map<string, number>();
-      transactions.forEach((tx: Transaction) => {
+      transactions
+        .filter((tx: Transaction) => tx.status === 'completed')
+        .forEach((tx: Transaction) => {
         const current = balanceMap.get(tx.account_id) || 0;
         balanceMap.set(tx.account_id, tx.type === 'credit' ? current + Number(tx.amount) : current - Number(tx.amount));
       });

@@ -503,7 +503,12 @@ class SupabaseDbService {
   async markThreadRead(threadId: string, userId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
-    await client.from('chat_messages').update({ read: true }).eq('thread_id', threadId).neq('user_id', userId);
+    await client
+      .from('chat_messages')
+      .update({ read: true })
+      .eq('thread_id', threadId)
+      .eq('sender_type', 'admin')
+      .eq('read', false);
   }
 
   async markThreadReadByAdmin(threadId: string): Promise<void> {
@@ -565,6 +570,53 @@ class SupabaseDbService {
       return null;
     }
     return data as { account: Account; card: VirtualCard };
+  }
+
+  async deleteUserAsAdmin(userId: string): Promise<{ success: boolean; error?: string }> {
+    const client = getClient();
+    if (!client) {
+      return { success: false, error: 'Supabase client is not available.' };
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await client.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      this.logError('deleteUserAsAdmin.getSession', sessionError);
+      return { success: false, error: 'Admin session is not available.' };
+    }
+
+    try {
+      const apiBase = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const endpoint = apiBase ? `${apiBase}/api/delete-user` : '/api/delete-user';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          error: payload?.error || 'User deletion failed.',
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.logError('deleteUserAsAdmin.fetch', error);
+      return {
+        success: false,
+        error: 'Unable to reach the user deletion service.',
+      };
+    }
   }
 }
 
