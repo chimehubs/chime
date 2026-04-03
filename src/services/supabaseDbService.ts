@@ -8,6 +8,7 @@ export interface Profile {
   email: string;
   name?: string;
   first_name?: string;
+  middle_name?: string;
   last_name?: string;
   phone?: string;
   role?: UserRole;

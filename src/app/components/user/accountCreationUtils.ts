@@ -45,29 +45,43 @@ export async function completeAccountCreation(
 
   if (!result) return null;
 
-  const profile = await supabaseDbService.updateProfile(user.id, {
-    name: fullName,
-    first_name: formData.firstName,
-    last_name: formData.lastName,
-    nationality: formData.nationality,
+  const latestProfile = await supabaseDbService.getProfile(user.id);
+  const accountCreationForm = {
+    firstName: formData.firstName,
+    middleName: formData.middleName || '',
+    lastName: formData.lastName,
     gender: formData.gender,
-    date_of_birth: formData.dateOfBirth,
-    house_address: formData.houseAddress,
+    dateOfBirth: formData.dateOfBirth,
+    nationality: formData.nationality,
+    houseAddress: formData.houseAddress,
     occupation: formData.occupation,
-    salary_range: formData.salaryRange,
-    primary_account_type: formData.accountType,
+    salaryRange: formData.salaryRange,
+    accountType: formData.accountType,
     currency: formData.currency,
-    avatar_url: avatarUrl,
-    status: 'ACTIVE'
+    avatarUrl: avatarUrl || latestProfile?.avatar_url || '',
+    submittedAt: new Date().toISOString(),
+  };
+
+  const profile = await supabaseDbService.updateProfile(user.id, {
+    preferences: {
+      ...(latestProfile?.preferences || user.preferences || {}),
+      accountCreationForm,
+    },
   });
+
+  const resolvedProfile = profile || latestProfile;
+  const resolvedPreferences = resolvedProfile?.preferences || {
+    ...(user.preferences || {}),
+    accountCreationForm,
+  };
 
   const updatedUser: UserProfile = {
     ...user,
-    name: profile?.name || fullName,
+    name: resolvedProfile?.name || fullName,
     status: 'ACTIVE',
-    currency: profile?.currency || formData.currency,
-    avatar: profile?.avatar_url || avatarUrl || user.avatar,
-    preferences: profile?.preferences || user.preferences || {}
+    currency: resolvedProfile?.currency || formData.currency,
+    avatar: resolvedProfile?.avatar_url || avatarUrl || user.avatar,
+    preferences: resolvedPreferences,
   } as UserProfile;
 
   return {

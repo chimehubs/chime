@@ -42,6 +42,32 @@ export default function AdminUsers() {
     profile: Profile;
     account?: Account | null;
   };
+  type AccountCreationSnapshot = {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    nationality?: string;
+    houseAddress?: string;
+    occupation?: string;
+    salaryRange?: string;
+    accountType?: string;
+    currency?: string;
+    avatarUrl?: string;
+    submittedAt?: string;
+  };
+  type AccountCreationDetail = {
+    label: string;
+    value: React.ReactNode;
+    fullWidth?: boolean;
+    mono?: boolean;
+  };
+  type AccountCreationSection = {
+    title: string;
+    description: string;
+    items: AccountCreationDetail[];
+  };
 
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
@@ -215,6 +241,144 @@ export default function AdminUsers() {
   const getCurrencySymbol = (currency: string) => {
     const symbols: Record<string, string> = { USD: '$', EUR: 'EUR ', GBP: 'GBP ', INR: 'INR ', JPY: 'JPY ', AUD: 'A$', CAD: 'C$' };
     return symbols[currency] || '$';
+  };
+
+  const getAccountCreationSnapshot = (profile: Profile): AccountCreationSnapshot => {
+    const raw = profile.preferences?.accountCreationForm;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    return raw as AccountCreationSnapshot;
+  };
+
+  const formatOptionalText = (value?: string | null) => {
+    if (typeof value !== 'string') return 'Not provided';
+    const trimmed = value.trim();
+    return trimmed || 'Not provided';
+  };
+
+  const formatReadableDate = (value?: string | null) => {
+    const raw = formatOptionalText(value);
+    if (raw === 'Not provided') return raw;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw;
+    return parsed.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const formatLabelValue = (value?: string | null) => {
+    const raw = formatOptionalText(value);
+    if (raw === 'Not provided') return raw;
+    return raw
+      .toLowerCase()
+      .split(/[_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+
+  const getAccountCreationSections = (userRow: AdminUserRow): AccountCreationSection[] => {
+    const snapshot = getAccountCreationSnapshot(userRow.profile);
+    const middleName = formatOptionalText(snapshot.middleName || userRow.profile.middle_name);
+    const firstName = formatOptionalText(snapshot.firstName || userRow.profile.first_name);
+    const lastName = formatOptionalText(snapshot.lastName || userRow.profile.last_name);
+    const fullName = [firstName, middleName, lastName]
+      .filter((part) => part !== 'Not provided')
+      .join(' ')
+      .trim() || userRow.name;
+    const photoUrl = formatOptionalText(snapshot.avatarUrl || userRow.profile.avatar_url) !== 'Not provided'
+      ? String(snapshot.avatarUrl || userRow.profile.avatar_url)
+      : '';
+
+    return [
+      {
+        title: 'Personal Information',
+        description: 'Identity details submitted during onboarding.',
+        items: [
+          { label: 'Full Name', value: fullName },
+          { label: 'First Name', value: firstName },
+          { label: 'Middle Name', value: middleName },
+          { label: 'Last Name', value: lastName },
+          { label: 'Gender', value: formatLabelValue(snapshot.gender || userRow.profile.gender) },
+          { label: 'Date of Birth', value: formatReadableDate(snapshot.dateOfBirth || userRow.profile.date_of_birth) },
+          { label: 'Nationality', value: formatOptionalText(snapshot.nationality || userRow.profile.nationality) },
+          { label: 'House Address', value: formatOptionalText(snapshot.houseAddress || userRow.profile.house_address), fullWidth: true },
+          { label: 'Phone Number', value: formatOptionalText(userRow.profile.phone) },
+          { label: 'Email Address', value: formatOptionalText(userRow.profile.email) },
+        ],
+      },
+      {
+        title: 'Occupation & Income',
+        description: 'Employment and income details from the form.',
+        items: [
+          { label: 'Occupation', value: formatOptionalText(snapshot.occupation || userRow.profile.occupation) },
+          { label: 'Salary Range', value: formatOptionalText(snapshot.salaryRange || userRow.profile.salary_range) },
+          { label: 'Form Submitted', value: formatReadableDate(snapshot.submittedAt || userRow.account?.created_at || userRow.profile.updated_at) },
+        ],
+      },
+      {
+        title: 'Account Setup',
+        description: 'Requested banking setup and generated account records.',
+        items: [
+          { label: 'Account Type', value: formatLabelValue(snapshot.accountType || userRow.profile.primary_account_type || userRow.account?.account_type) },
+          { label: 'Currency', value: formatOptionalText(snapshot.currency || userRow.profile.currency || userRow.account?.currency || userRow.currency) },
+          { label: 'Account Number', value: formatOptionalText(userRow.account?.account_number), mono: true },
+          { label: 'Routing Number', value: formatOptionalText(userRow.account?.routing_number), mono: true },
+          {
+            label: 'Uploaded Photo',
+            value: photoUrl ? (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12 border border-black/5 shadow-sm">
+                  <AvatarImage src={photoUrl} alt={`${userRow.name} profile photo`} className="object-cover" />
+                  <AvatarFallback>{getUserInitials(userRow.name)}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-foreground">Photo uploaded</span>
+              </div>
+            ) : 'Not provided',
+            fullWidth: true,
+          },
+          { label: 'Security PIN', value: 'Stored securely and not visible to admins.', fullWidth: true },
+        ],
+      },
+    ];
+  };
+
+  const renderAccountCreationDetails = (
+    userRow: AdminUserRow,
+    variant: 'compact' | 'full',
+  ) => {
+    const isCompact = variant === 'compact';
+    const sections = getAccountCreationSections(userRow);
+
+    return (
+      <div className={isCompact ? 'space-y-4' : 'space-y-6'}>
+        {sections.map((section) => (
+          <div
+            key={section.title}
+            className={isCompact ? 'rounded-xl border border-border/70 bg-muted/20 p-4' : 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm'}
+          >
+            <div className="mb-4">
+              <h3 className={isCompact ? 'text-sm font-semibold text-foreground' : 'text-lg font-semibold text-slate-900'}>{section.title}</h3>
+              <p className={isCompact ? 'mt-1 text-xs text-muted-foreground' : 'mt-1 text-sm text-slate-500'}>{section.description}</p>
+            </div>
+            <div className={`grid grid-cols-1 gap-3 ${isCompact ? '' : 'md:grid-cols-2 md:gap-4'}`}>
+              {section.items.map((item) => (
+                <div
+                  key={item.label}
+                  className={`${item.fullWidth && !isCompact ? 'md:col-span-2' : ''} rounded-xl border ${isCompact ? 'border-border/60 bg-background/80 px-3 py-3' : 'border-slate-100 bg-slate-50/80 px-4 py-4'}`}
+                >
+                  <p className={isCompact ? 'text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground' : 'text-xs font-semibold uppercase tracking-[0.16em] text-slate-500'}>{item.label}</p>
+                  <div className={`${item.mono ? 'font-mono' : ''} ${isCompact ? 'mt-2 text-sm font-medium text-foreground break-words' : 'mt-2 text-base font-medium text-slate-900 break-words'}`}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const syncUpdatedProfile = (updatedProfile: Profile) => {
@@ -781,6 +945,13 @@ export default function AdminUsers() {
 
                   <div className="space-y-4 border-b border-border pb-6">
                     <div>
+                      <p className="text-xs text-muted-foreground mb-3 uppercase tracking-[0.16em]">Account Creation Details</p>
+                      {renderAccountCreationDetails(selectedUser, 'compact')}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 border-b border-border pb-6">
+                    <div>
                       <p className="text-xs text-muted-foreground mb-3 uppercase tracking-[0.16em]">Account Controls</p>
                       <div className="grid grid-cols-1 gap-3">
                         <div>
@@ -965,6 +1136,11 @@ export default function AdminUsers() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold mb-6">Account Creation Details</h2>
+              {renderAccountCreationDetails(selectedUser, 'full')}
             </div>
 
             <div className="mb-12">
