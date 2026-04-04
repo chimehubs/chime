@@ -21,7 +21,6 @@ import {
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { ScrollArea } from '../ui/scroll-area';
 import AdminLayout from './AdminLayout';
 import {
   supabaseDbService,
@@ -616,14 +615,14 @@ export default function AdminTransactions() {
             className="fixed inset-0 z-[120] bg-slate-950/60 p-0 backdrop-blur-sm sm:p-6"
             onClick={() => setSelectedRecord(null)}
           >
-            <div className="flex h-full items-end justify-center sm:items-center">
+            <div className="flex h-full min-h-0 items-end justify-center sm:items-center">
               <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.98 }}
                 transition={{ duration: 0.18 }}
                 onClick={(event) => event.stopPropagation()}
-                className="flex h-[100dvh] max-h-[100dvh] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-none border-0 bg-white shadow-[0_40px_140px_rgba(15,23,42,0.32)] sm:h-auto sm:max-h-[90vh] sm:rounded-[28px] sm:border sm:border-[#dbe7e2]"
+                className="flex h-[100dvh] max-h-[100dvh] w-full max-w-5xl min-w-0 min-h-0 flex-col overflow-hidden rounded-none border-0 bg-white shadow-[0_40px_140px_rgba(15,23,42,0.32)] sm:h-auto sm:max-h-[90vh] sm:rounded-[28px] sm:border sm:border-[#dbe7e2]"
               >
                 <div className="relative overflow-hidden border-b border-[#dbe7e2] bg-[linear-gradient(135deg,#0f766e_0%,#00b388_48%,#d9fff0_100%)] px-4 py-5 text-white sm:px-6 sm:py-6">
                   <div className="pointer-events-none absolute inset-0">
@@ -660,8 +659,8 @@ export default function AdminTransactions() {
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1">
-                  <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <div className="space-y-5 p-4 pb-8 sm:space-y-6 sm:p-6">
                     <div className="grid gap-4 lg:grid-cols-4">
                       <DetailRow label="Record ID" value={selectedRecord.id} mono />
                       <DetailRow label="Source ID" value={selectedRecord.sourceId} mono />
@@ -752,7 +751,7 @@ export default function AdminTransactions() {
                       </pre>
                     </Card>
                   </div>
-                </ScrollArea>
+                </div>
               </motion.div>
             </div>
           </motion.div>
