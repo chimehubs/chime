@@ -88,13 +88,26 @@ export default function AdminUsers() {
   const [userActionError, setUserActionError] = useState('');
   const [userActionSuccess, setUserActionSuccess] = useState('');
   const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isLiquidatingAccount, setIsLiquidatingAccount] = useState(false);
   const [transactionLimitInput, setTransactionLimitInput] = useState(String(DEFAULT_TRANSACTION_LIMIT));
   const [withdrawalLimitInput, setWithdrawalLimitInput] = useState(String(DEFAULT_WITHDRAWAL_LIMIT));
   const [freezeNote, setFreezeNote] = useState('');
   const [isSavingControls, setIsSavingControls] = useState(false);
   const [isTogglingFreeze, setIsTogglingFreeze] = useState(false);
 
-  const getUserStatus = (profile: Profile) => {
+  const isProfileLiquidated = (profile: Profile, account?: Account | null) => {
+    const lifecycle = profile.preferences?.accountLifecycle;
+    const freezeState = getActiveFreezeState(profile.preferences);
+    return Boolean(
+      (lifecycle && typeof lifecycle === 'object' && !Array.isArray(lifecycle) && (lifecycle as Record<string, unknown>).isLiquidated === true) ||
+      freezeState?.reason === 'account_liquidation' ||
+      account?.status === 'CLOSED',
+    );
+  };
+
+  const getUserStatus = (profile: Profile, account?: Account | null) => {
+    if (isProfileLiquidated(profile, account)) return 'liquidated';
+
     const freezeState = getActiveFreezeState(profile.preferences);
     if (freezeState?.isFrozen) return 'frozen';
 
@@ -106,6 +119,7 @@ export default function AdminUsers() {
 
   const getStatusBadgeClass = (status: string) => {
     if (status === 'active') return 'bg-green-100 text-green-700';
+    if (status === 'liquidated') return 'bg-slate-900 text-white';
     if (status === 'frozen') return 'bg-red-100 text-red-700';
     if (status === 'restricted') return 'bg-orange-100 text-orange-700';
     return 'bg-amber-100 text-amber-700';
@@ -150,7 +164,7 @@ export default function AdminUsers() {
         const balanceValue = account ? (balanceByAccount.get(account.id) || 0) : 0;
         const currency = profile.currency || account?.currency || 'USD';
         const displayName = profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User';
-        const status = getUserStatus(profile);
+        const status = getUserStatus(profile, account);
         const joined = profile.created_at ? profile.created_at.split('T')[0] : 'N/A';
         return {
           id: profile.id,
@@ -388,7 +402,7 @@ export default function AdminUsers() {
           ? {
               ...row,
               profile: updatedProfile,
-              status: getUserStatus(updatedProfile),
+              status: getUserStatus(updatedProfile, row.account),
               avatarUrl: updatedProfile.avatar_url,
               currency: updatedProfile.currency || row.currency,
             }
@@ -401,9 +415,33 @@ export default function AdminUsers() {
         ? {
             ...current,
             profile: updatedProfile,
-            status: getUserStatus(updatedProfile),
+            status: getUserStatus(updatedProfile, current.account),
             avatarUrl: updatedProfile.avatar_url,
             currency: updatedProfile.currency || current.currency,
+          }
+        : current,
+    );
+  };
+
+  const syncUpdatedAccount = (updatedAccount: Account) => {
+    setUsers((current) =>
+      current.map((row) =>
+        row.account?.id === updatedAccount.id
+          ? {
+              ...row,
+              account: updatedAccount,
+              status: getUserStatus(row.profile, updatedAccount),
+            }
+          : row,
+      ),
+    );
+
+    setSelectedUser((current) =>
+      current?.account?.id === updatedAccount.id
+        ? {
+            ...current,
+            account: updatedAccount,
+            status: getUserStatus(current.profile, updatedAccount),
           }
         : current,
     );
@@ -529,6 +567,120 @@ export default function AdminUsers() {
     }
   };
 
+  const handleLiquidateAccount = async () => {
+    if (!selectedUser?.profile?.id) return;
+
+    setUserActionError('');
+    setUserActionSuccess('');
+
+    if (selectedUser.profile.role === 'admin') {
+      setUserActionError('The admin account cannot be liquidated from user management.');
+      return;
+    }
+
+    if (selectedUser.id === adminUser?.id) {
+      setUserActionError('The active admin session cannot liquidate itself.');
+      return;
+    }
+
+    if (!selectedUser.account?.id) {
+      setUserActionError('This user does not have an active banking account to liquidate.');
+      return;
+    }
+
+    if (selectedUser.status === 'liquidated') {
+      setUserActionError('This user account has already been liquidated.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Liquidate ${selectedUser.name}'s account? This will close the banking account, cancel active cards, restrict access, and notify the user.`,
+    );
+
+    if (!confirmed) return;
+
+    setIsLiquidatingAccount(true);
+
+    try {
+      const liquidatedAt = new Date().toISOString();
+      const customNote = freezeNote.trim();
+      const liquidationNote =
+        customNote ||
+        'Your account has been liquidated by your account manager with your prior consent. Banking access has been closed.';
+      const nextPreferences = {
+        ...clearFreezeState(selectedUser.profile.preferences || {}),
+        accountFreeze: {
+          isFrozen: true,
+          reason: 'account_liquidation',
+          createdAt: liquidatedAt,
+          amount: selectedUser.balanceValue || 0,
+          currency: selectedUser.profile.currency || selectedUser.currency || 'USD',
+          adminNote: liquidationNote,
+        },
+        accountLifecycle: {
+          ...((selectedUser.profile.preferences?.accountLifecycle &&
+          typeof selectedUser.profile.preferences.accountLifecycle === 'object' &&
+          !Array.isArray(selectedUser.profile.preferences.accountLifecycle)
+            ? selectedUser.profile.preferences.accountLifecycle
+            : {}) as Record<string, unknown>),
+          isLiquidated: true,
+          liquidatedAt,
+          liquidatedBy: adminUser?.id || null,
+          note: liquidationNote,
+        },
+      };
+
+      const updatedProfile = await supabaseDbService.updateProfile(selectedUser.profile.id, {
+        status: 'SUSPENDED' as any,
+        preferences: nextPreferences,
+      });
+
+      if (!updatedProfile) {
+        setUserActionError('Failed to update the user profile for liquidation.');
+        return;
+      }
+
+      const updatedAccount = await supabaseDbService.updateAccount(selectedUser.account.id, {
+        status: 'CLOSED',
+      });
+
+      if (!updatedAccount) {
+        setUserActionError('Failed to close the banking account during liquidation.');
+        return;
+      }
+
+      const cards = await supabaseDbService.getVirtualCards(selectedUser.profile.id);
+      await Promise.all(
+        cards
+          .filter((card) => card.status !== 'CANCELLED')
+          .map((card) => supabaseDbService.updateVirtualCard(card.id, { status: 'CANCELLED' })),
+      );
+
+      await Promise.all([
+        supabaseDbService.createActivity({
+          user_id: selectedUser.profile.id,
+          type: 'profile',
+          description: 'Account liquidated by account manager with user consent.',
+          amount: selectedUser.balanceValue || 0,
+        }),
+        supabaseDbService.createNotification({
+          user_id: selectedUser.profile.id,
+          title: 'Account Liquidation Notice',
+          message: `Your account has been liquidated by your account manager with your consent. Your banking access has been closed.${customNote ? ` ${customNote}` : ''} If you need a final statement or any further assistance, please contact customer support.`,
+          type: 'info',
+          read: false,
+          path: '/chat',
+        }),
+      ]);
+
+      syncUpdatedProfile(updatedProfile);
+      syncUpdatedAccount(updatedAccount);
+      setUserActionSuccess(`${selectedUser.name}'s account has been liquidated and the user has been notified.`);
+    } finally {
+      setIsLiquidatingAccount(false);
+    }
+  };
+
   const handleFundUser = async () => {
     setFundError('');
     setFundSuccess('');
@@ -640,6 +792,7 @@ export default function AdminUsers() {
   const activeUsers = users.filter((u) => u.status === 'active').length;
   const restrictedUsers = users.filter((u) => u.status === 'restricted').length;
   const frozenUsers = users.filter((u) => u.status === 'frozen').length;
+  const liquidatedUsers = users.filter((u) => u.status === 'liquidated').length;
 
   // Helper: map a user name to a gradient string
   const getUserGradient = (name: string) => {
@@ -724,10 +877,12 @@ export default function AdminUsers() {
     }
   };
 
+  const isSelectedUserLiquidated = selectedUser?.status === 'liquidated';
+
   return (
     <AdminLayout
       title="User Management"
-      subtitle={`${totalUsers} users | ${activeUsers} active | ${frozenUsers} frozen | ${unregisteredUsers} unregistered | ${restrictedUsers} restricted`}
+      subtitle={`${totalUsers} users | ${activeUsers} active | ${frozenUsers} frozen | ${liquidatedUsers} liquidated | ${unregisteredUsers} unregistered | ${restrictedUsers} restricted`}
     >
       {/* Admin Payment Details Section */}
       <Card className="mb-6 overflow-hidden border border-[#d6ebe4] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(237,249,244,0.98))] shadow-[0_18px_50px_rgba(0,163,122,0.08)]">
@@ -809,13 +964,14 @@ export default function AdminUsers() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2 rounded-lg bg-background border border-border text-sm"
               title="Filter by status"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="frozen">Frozen</option>
-              <option value="restricted">Restricted</option>
-              <option value="unregistered">Unregistered</option>
-            </select>
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="frozen">Frozen</option>
+                <option value="liquidated">Liquidated</option>
+                <option value="restricted">Restricted</option>
+                <option value="unregistered">Unregistered</option>
+              </select>
           </div>
         </Card>
 
@@ -975,12 +1131,12 @@ export default function AdminUsers() {
                           />
                         </div>
                         <div>
-                          <label className="mb-2 block text-xs font-semibold text-muted-foreground">Freeze Note</label>
+                          <label className="mb-2 block text-xs font-semibold text-muted-foreground">Account Control Note</label>
                           <textarea
                             value={freezeNote}
                             onChange={(event) => setFreezeNote(event.target.value)}
                             rows={3}
-                            placeholder="Optional note shown when the user account is frozen."
+                            placeholder="Optional note shown to the user for a freeze or liquidation action."
                             className="w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#00b388]/30"
                           />
                         </div>
@@ -990,7 +1146,7 @@ export default function AdminUsers() {
                     <div className="grid grid-cols-1 gap-3">
                       <Button
                         onClick={handleSaveAccountControls}
-                        disabled={isSavingControls}
+                        disabled={isSavingControls || isSelectedUserLiquidated}
                         variant="outline"
                         className="w-full border-[#00b388]/30 text-[#0a7a5a] hover:bg-[#ecfbf5]"
                       >
@@ -998,7 +1154,7 @@ export default function AdminUsers() {
                       </Button>
                       <Button
                         onClick={handleToggleFreeze}
-                        disabled={isTogglingFreeze}
+                        disabled={isTogglingFreeze || isSelectedUserLiquidated}
                         variant="outline"
                         className={`w-full ${
                           selectedUser.status === 'frozen'
@@ -1010,9 +1166,24 @@ export default function AdminUsers() {
                           ? selectedUser.status === 'frozen'
                             ? 'Unfreezing...'
                             : 'Freezing...'
+                          : isSelectedUserLiquidated
+                            ? 'Account Liquidated'
                           : selectedUser.status === 'frozen'
                             ? 'Unfreeze Account'
                             : 'Freeze Account'}
+                      </Button>
+                      <Button
+                        onClick={handleLiquidateAccount}
+                        disabled={isLiquidatingAccount || isSelectedUserLiquidated || !selectedUser.account}
+                        variant="outline"
+                        className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        {isLiquidatingAccount
+                          ? 'Liquidating Account...'
+                          : isSelectedUserLiquidated
+                            ? 'Account Liquidated'
+                            : 'Liquidate Account'}
                       </Button>
                     </div>
                   </div>
@@ -1020,6 +1191,7 @@ export default function AdminUsers() {
                   <div className="space-y-3">
                     <Button
                       onClick={() => setShowFundModal(true)}
+                      disabled={isSelectedUserLiquidated}
                       className="w-full bg-[#00b388] hover:bg-[#009670] text-white"
                     >
                       <Wallet className="mr-2 h-4 w-4" />
@@ -1080,6 +1252,7 @@ export default function AdminUsers() {
                   <div className="mt-4">
                     <Badge className={
                       selectedUser.status === 'active' ? 'bg-white text-emerald-600' :
+                      selectedUser.status === 'liquidated' ? 'bg-slate-900 text-white' :
                       selectedUser.status === 'frozen' ? 'bg-white text-red-600' :
                       selectedUser.status === 'restricted' ? 'bg-white text-orange-600' :
                       'bg-white text-amber-600'
@@ -1169,19 +1342,19 @@ export default function AdminUsers() {
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Freeze Note</label>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Account Control Note</label>
                   <textarea
                     value={freezeNote}
                     onChange={(event) => setFreezeNote(event.target.value)}
                     rows={4}
-                    placeholder="Optional note shown to the user when their account is frozen."
+                    placeholder="Optional note shown to the user for a freeze or liquidation action."
                     className="w-full rounded-lg border border-border px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00b388]/30"
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Button
                     onClick={handleSaveAccountControls}
-                    disabled={isSavingControls}
+                    disabled={isSavingControls || isSelectedUserLiquidated}
                     variant="outline"
                     className="border-[#00b388]/30 text-[#0a7a5a] hover:bg-[#ecfbf5]"
                   >
@@ -1189,7 +1362,7 @@ export default function AdminUsers() {
                   </Button>
                   <Button
                     onClick={handleToggleFreeze}
-                    disabled={isTogglingFreeze}
+                    disabled={isTogglingFreeze || isSelectedUserLiquidated}
                     variant="outline"
                     className={
                       selectedUser.status === 'frozen'
@@ -1201,17 +1374,32 @@ export default function AdminUsers() {
                       ? selectedUser.status === 'frozen'
                         ? 'Unfreezing...'
                         : 'Freezing...'
+                      : isSelectedUserLiquidated
+                        ? 'Account Liquidated'
                       : selectedUser.status === 'frozen'
                         ? 'Unfreeze Account'
                         : 'Freeze Account'}
                   </Button>
                 </div>
+                <Button
+                  onClick={handleLiquidateAccount}
+                  disabled={isLiquidatingAccount || isSelectedUserLiquidated || !selectedUser.account}
+                  variant="outline"
+                  className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  {isLiquidatingAccount
+                    ? 'Liquidating Account...'
+                    : isSelectedUserLiquidated
+                      ? 'Account Liquidated'
+                      : 'Liquidate Account'}
+                </Button>
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pb-12">
-              <Button onClick={() => setShowFundModal(true)} className="flex-1 bg-[#00b388] hover:bg-[#009670] text-white text-lg py-6 font-semibold">
+              <Button onClick={() => setShowFundModal(true)} disabled={isSelectedUserLiquidated} className="flex-1 bg-[#00b388] hover:bg-[#009670] text-white text-lg py-6 font-semibold disabled:opacity-60">
                 <Wallet className="w-5 h-5 mr-2" /> Fund Account
               </Button>
               <Button

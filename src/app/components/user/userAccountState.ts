@@ -2,7 +2,7 @@
 
 export type AccountFreezeState = {
   isFrozen: boolean;
-  reason: 'withdrawal_security_pin' | 'admin_action';
+  reason: 'withdrawal_security_pin' | 'admin_action' | 'account_liquidation';
   securityPin?: string;
   pendingWithdrawalId?: string;
   createdAt: string;
@@ -93,7 +93,12 @@ export function getActiveFreezeState(preferences?: Record<string, any> | null): 
     return null;
   }
 
-  const reason = raw.reason === 'admin_action' ? 'admin_action' : 'withdrawal_security_pin';
+  const reason =
+    raw.reason === 'account_liquidation'
+      ? 'account_liquidation'
+      : raw.reason === 'admin_action'
+        ? 'admin_action'
+        : 'withdrawal_security_pin';
   if (reason === 'withdrawal_security_pin' && typeof raw.pendingWithdrawalId !== 'string') {
     return null;
   }

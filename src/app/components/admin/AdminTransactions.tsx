@@ -245,7 +245,7 @@ function getStatusTone(status: RecordStatus) {
 
 function DetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-2xl border border-[#e8efec] bg-[#fbfdfc] px-4 py-3">
+    <div className="rounded-2xl border border-[#e8efec] bg-[#fbfdfc] px-3 py-3 sm:px-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className={`mt-1 text-sm text-slate-900 ${mono ? 'font-mono break-all' : 'break-words'}`}>{value || 'N/A'}</p>
     </div>
@@ -613,31 +613,31 @@ export default function AdminTransactions() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[120] bg-slate-950/60 p-4 backdrop-blur-sm sm:p-6"
+            className="fixed inset-0 z-[120] bg-slate-950/60 p-0 backdrop-blur-sm sm:p-6"
             onClick={() => setSelectedRecord(null)}
           >
-            <div className="flex h-full items-center justify-center">
+            <div className="flex h-full items-end justify-center sm:items-center">
               <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 18, scale: 0.98 }}
                 transition={{ duration: 0.18 }}
                 onClick={(event) => event.stopPropagation()}
-                className="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-[#dbe7e2] bg-white shadow-[0_40px_140px_rgba(15,23,42,0.32)]"
+                className="flex h-[100dvh] max-h-[100dvh] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-none border-0 bg-white shadow-[0_40px_140px_rgba(15,23,42,0.32)] sm:h-auto sm:max-h-[90vh] sm:rounded-[28px] sm:border sm:border-[#dbe7e2]"
               >
-                <div className="relative overflow-hidden border-b border-[#dbe7e2] bg-[linear-gradient(135deg,#0f766e_0%,#00b388_48%,#d9fff0_100%)] px-6 py-6 text-white">
+                <div className="relative overflow-hidden border-b border-[#dbe7e2] bg-[linear-gradient(135deg,#0f766e_0%,#00b388_48%,#d9fff0_100%)] px-4 py-5 text-white sm:px-6 sm:py-6">
                   <div className="pointer-events-none absolute inset-0">
                     <div className="absolute -right-10 top-0 h-28 w-28 rounded-full bg-white/12 blur-2xl" />
                     <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-slate-900/15 blur-2xl" />
                   </div>
                   <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge className="border border-white/20 bg-white/15 text-white">{toSentence(selectedRecord.kind)}</Badge>
                         <Badge className="border border-white/20 bg-white/15 text-white">{toSentence(selectedRecord.category)}</Badge>
                         <Badge className="border border-white/20 bg-white/15 text-white">{toSentence(selectedRecord.status)}</Badge>
                       </div>
-                      <h3 className="mt-3 text-2xl font-semibold">{selectedRecord.title}</h3>
+                      <h3 className="mt-3 text-xl font-semibold sm:text-2xl">{selectedRecord.title}</h3>
                       <p className="mt-2 max-w-3xl text-sm text-white/85">{selectedRecord.description}</p>
                       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/80">
                         <span className="inline-flex items-center gap-1.5">
@@ -653,7 +653,7 @@ export default function AdminTransactions() {
                     <button
                       type="button"
                       onClick={() => setSelectedRecord(null)}
-                      className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+                      className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 sm:self-start"
                     >
                       Close
                     </button>
@@ -661,7 +661,7 @@ export default function AdminTransactions() {
                 </div>
 
                 <ScrollArea className="flex-1">
-                  <div className="space-y-6 p-6">
+                  <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
                     <div className="grid gap-4 lg:grid-cols-4">
                       <DetailRow label="Record ID" value={selectedRecord.id} mono />
                       <DetailRow label="Source ID" value={selectedRecord.sourceId} mono />
@@ -747,7 +747,7 @@ export default function AdminTransactions() {
                         <h4 className="text-lg font-semibold">Raw payload</h4>
                       </div>
                       <p className="mt-2 text-sm text-slate-300">Full record payload for audit and support follow-up.</p>
-                      <pre className="mt-4 overflow-x-auto rounded-2xl bg-white/5 p-4 text-xs text-slate-200">
+                      <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl bg-white/5 p-4 text-xs text-slate-200">
                         {selectedRecord.rawPayload}
                       </pre>
                     </Card>

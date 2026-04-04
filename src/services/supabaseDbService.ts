@@ -228,6 +228,22 @@ class SupabaseDbService {
     return data as VirtualCard;
   }
 
+  async updateAccount(accountId: string, updates: Partial<Account>): Promise<Account | null> {
+    const client = getClient();
+    if (!client) return null;
+    const { data, error } = await client
+      .from('accounts')
+      .update(updates)
+      .eq('id', accountId)
+      .select()
+      .single();
+    if (error) {
+      this.logError('updateAccount', error);
+      return null;
+    }
+    return data as Account;
+  }
+
   async getTransactions(userId: string, limit = 50): Promise<Transaction[]> {
     const client = getClient();
     if (!client) return [];

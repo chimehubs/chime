@@ -25,6 +25,8 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isBypassedRoute = BYPASS_PATHS.has(location.pathname);
+  const isAdminActionHold = freezeState?.reason === 'admin_action';
+  const isLiquidatedAccount = freezeState?.reason === 'account_liquidation';
 
   useEffect(() => {
     const syncFreezeState = async () => {
@@ -65,6 +67,10 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
 
   const handleUnlock = async () => {
     if (!user?.id || !freezeState) return;
+    if (freezeState.reason === 'account_liquidation') {
+      setError('This account has been liquidated. Contact customer support if you need final records or assistance.');
+      return;
+    }
     if (freezeState.reason === 'admin_action') {
       setError('This account freeze was applied by account control. Contact customer support or wait for admin reactivation.');
       return;
@@ -191,7 +197,9 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
               <p className="text-xs uppercase tracking-[0.28em] text-white/50">Account Security Hold</p>
               <h1 className="mt-2 text-2xl font-semibold">Your account is temporarily frozen</h1>
               <p className="mt-2 text-sm text-white/70 leading-relaxed">
-                {freezeState.reason === 'admin_action'
+                {isLiquidatedAccount
+                  ? 'Your account has been liquidated by your account manager with your prior consent. Access to banking services is now closed.'
+                  : isAdminActionHold
                   ? 'Your account has been temporarily frozen by account control. Access remains restricted until the freeze is lifted.'
                   : 'We detected a withdrawal that requires an additional 6-digit security PIN before your account can be reactivated.'}
               </p>
@@ -199,7 +207,22 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
           </div>
 
           <div className="rounded-2xl border border-white/12 bg-white/[0.06] p-5 space-y-3 text-sm">
-            {freezeState.reason === 'admin_action' ? (
+            {isLiquidatedAccount ? (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Action source</span>
+                  <span className="font-semibold">Account manager liquidation</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-white/60">Current state</span>
+                  <span className="font-semibold">Account liquidated</span>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-white/60">Liquidation note</span>
+                  <span className="font-semibold text-right">{freezeState.adminNote || 'No additional note provided.'}</span>
+                </div>
+              </>
+            ) : isAdminActionHold ? (
               <>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-white/60">Freeze source</span>
@@ -261,13 +284,15 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
           <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-50 flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 mt-0.5" />
             <span>
-              {freezeState.reason === 'admin_action'
+              {isLiquidatedAccount
+                ? 'This account remains closed after liquidation. Customer support can help with final statements or post-liquidation questions.'
+                : isAdminActionHold
                 ? 'This restriction stays active until account control removes it. Customer support remains available if you need assistance.'
                 : 'Until the correct PIN is verified, your account remains frozen. Once verified, the held withdrawal is cancelled and your balance remains unchanged.'}
             </span>
           </div>
 
-          <div className={`grid gap-3 ${freezeState.reason === 'admin_action' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+          <div className={`grid gap-3 ${isAdminActionHold || isLiquidatedAccount ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
             {freezeState.reason === 'withdrawal_security_pin' ? (
               <Button
                 onClick={handleUnlock}
@@ -283,7 +308,7 @@ export default function AccountFreezeGate({ children }: { children: React.ReactN
               className="h-12 border-white/15 text-white bg-white/5 hover:bg-white/10"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
-              Get PIN From Support
+              {freezeState.reason === 'withdrawal_security_pin' ? 'Get PIN From Support' : 'Contact Support'}
             </Button>
           </div>
         </Card>

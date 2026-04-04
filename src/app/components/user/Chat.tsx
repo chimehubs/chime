@@ -9,7 +9,7 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 import { useToast } from '../../../context/ToastProvider';
-import { getActiveFreezeState } from './userAccountState';
+import { getActiveFreezeState, type AccountFreezeState } from './userAccountState';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
@@ -44,7 +44,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [displayedText, setDisplayedText] = useState('');
   const [darkMode, setDarkMode] = useState(false);
-  const [accountFrozen, setAccountFrozen] = useState(false);
+  const [accountRestriction, setAccountRestriction] = useState<AccountFreezeState | null>(null);
   const [hasExistingMessages, setHasExistingMessages] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -109,7 +109,7 @@ export default function Chat() {
       if (profile?.preferences?.darkMode !== undefined) {
         setDarkMode(!!profile.preferences.darkMode);
       }
-      setAccountFrozen(Boolean(getActiveFreezeState(profile?.preferences)));
+      setAccountRestriction(getActiveFreezeState(profile?.preferences));
       const thread = await resolveThread(user.id);
       if (!thread?.id) {
         addToast('error', 'Customer support is temporarily unavailable. Please try again.');
@@ -373,13 +373,17 @@ export default function Chat() {
       </motion.div>
       {/* Messages Area */}
       <div className="relative flex-1 overflow-y-auto px-6 py-6">
-        {accountFrozen && (
+        {accountRestriction && (
           <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
             darkMode
               ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
               : 'border-amber-200 bg-amber-50 text-amber-800'
           }`}>
-            Your account is frozen pending withdrawal PIN verification. Customer support remains available so you can request the required 6-digit PIN.
+            {accountRestriction.reason === 'withdrawal_security_pin'
+              ? 'Your account is frozen pending withdrawal PIN verification. Customer support remains available so you can request the required 6-digit PIN.'
+              : accountRestriction.reason === 'account_liquidation'
+                ? 'Your account has been liquidated by your account manager with your prior consent. Customer support remains available if you need final statements or assistance.'
+                : 'Your account is under an admin control restriction. Customer support remains available if you need help.'}
           </div>
         )}
         {/* Welcome Message with Typing Animation - Only show if no existing messages */}
