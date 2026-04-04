@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, User, Send, Paperclip, X } from 'lucide-react';
+import { ArrowLeft, User, Send, Paperclip, X, CheckCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { useAuthContext } from '../../../context/AuthProvider';
@@ -14,11 +14,26 @@ import { getActiveFreezeState } from './userAccountState';
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
+const CHAT_PRESENCE_HEARTBEAT_MS = 20000;
 
 function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   const ext = (fileName.split('.').pop() || '').toLowerCase();
   if (IMAGE_EXTENSIONS.includes(ext)) return true;
   return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(attachmentUrl || '');
+}
+
+function sortMessages(items: ChatMessage[]) {
+  return [...items].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aTime - bTime;
+  });
+}
+
+function getMessageSyncKey(items: ChatMessage[]) {
+  return items
+    .map((msg) => `${msg.id}:${msg.message}:${msg.attachment_url || ''}:${msg.read ? 1 : 0}:${msg.read_at || ''}:${msg.created_at || ''}`)
+    .join('|');
 }
 
 export default function Chat() {
@@ -43,8 +58,17 @@ export default function Chat() {
   const welcomeMessage = 'Hello! Welcome to Chimehubs customer support. How can we assist you today?';
   const { addToast } = useToast();
 
-  const appendMessage = useCallback((msg: ChatMessage) => {
-    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+  const upsertMessage = useCallback((msg: ChatMessage) => {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === msg.id);
+      if (existingIndex === -1) {
+        return sortMessages([...prev, msg]);
+      }
+
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...msg };
+      return sortMessages(next);
+    });
   }, []);
 
   const resolveThread = useCallback(async (userId: string) => {
@@ -93,7 +117,7 @@ export default function Chat() {
       }
       setThreadId(thread.id);
       const existing = await supabaseDbService.getChatMessages(thread.id);
-      setMessages(existing);
+      setMessages(sortMessages(existing));
       setHasExistingMessages(existing.length > 0);
       await supabaseDbService.markThreadRead(thread.id, user.id);
     };
@@ -111,11 +135,19 @@ export default function Chat() {
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
         async (payload) => {
           const msg = payload.new as ChatMessage;
-          appendMessage(msg);
+          upsertMessage(msg);
           setHasExistingMessages(true);
           if (msg.sender_type === 'admin' && user?.id) {
             await supabaseDbService.markThreadRead(threadId, user.id);
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
+        (payload) => {
+          const msg = payload.new as ChatMessage;
+          upsertMessage(msg);
         }
       )
       .subscribe();
@@ -123,7 +155,62 @@ export default function Chat() {
     return () => {
       client.removeChannel(channel);
     };
-  }, [threadId, appendMessage, user?.id]);
+  }, [threadId, upsertMessage, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let heartbeatId: number | null = null;
+    const touchPresence = () => {
+      void supabaseDbService.touchChatLastSeen(user.id);
+    };
+    const startHeartbeat = () => {
+      touchPresence();
+      if (heartbeatId !== null) return;
+      heartbeatId = window.setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          touchPresence();
+        }
+      }, CHAT_PRESENCE_HEARTBEAT_MS);
+    };
+    const stopHeartbeat = () => {
+      if (heartbeatId !== null) {
+        window.clearInterval(heartbeatId);
+        heartbeatId = null;
+      }
+      touchPresence();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startHeartbeat();
+      } else {
+        stopHeartbeat();
+      }
+    };
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        touchPresence();
+      }
+    };
+
+    if (document.visibilityState === 'visible') {
+      startHeartbeat();
+    } else {
+      touchPresence();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      if (heartbeatId !== null) {
+        window.clearInterval(heartbeatId);
+      }
+      touchPresence();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (prefillApplied.current) return;
@@ -138,9 +225,9 @@ export default function Chat() {
     if (!threadId) return;
     let isMounted = true;
     const poll = async () => {
-      const latest = await supabaseDbService.getChatMessages(threadId);
+      const latest = sortMessages(await supabaseDbService.getChatMessages(threadId));
       if (!isMounted) return;
-      setMessages((prev) => (latest.length > prev.length ? latest : prev));
+      setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
     };
     const interval = setInterval(poll, 5000);
     return () => {
@@ -187,7 +274,7 @@ export default function Chat() {
         return;
       }
 
-      appendMessage(saved);
+      upsertMessage(saved);
       setHasExistingMessages(true);
       await supabaseDbService.markThreadRead(thread.id, user.id);
       setInput('');
@@ -230,7 +317,7 @@ export default function Chat() {
           return;
         }
 
-        appendMessage(saved);
+        upsertMessage(saved);
         setHasExistingMessages(true);
         await supabaseDbService.markThreadRead(thread.id, user.id);
       } finally {
@@ -281,14 +368,7 @@ export default function Chat() {
         </motion.div>
         <div>
           <div className="text-base font-semibold">Customer Care</div>
-          <div className="flex items-center gap-2 mt-1">
-            <motion.span 
-              animate={{ scale: [1, 1.3, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-green-500" 
-            />
-            <span className="text-xs text-muted-foreground">Online</span>
-          </div>
+          <div className="mt-1 text-xs text-muted-foreground">Secure support channel</div>
         </div>
       </motion.div>
       {/* Messages Area */}
@@ -368,7 +448,10 @@ export default function Chat() {
                 ) : (
                   <div className="text-sm break-words">{msg.message}</div>
                 )}
-                <div className="text-xs text-white/70 mt-2">{timestamp}</div>
+                <div className="mt-2 flex items-center justify-end gap-1 text-xs">
+                  <span className="text-white/70">{timestamp}</span>
+                  <CheckCheck className={`w-4 h-4 ${msg.read ? 'text-[#8ad8ff]' : 'text-white/70'}`} />
+                </div>
               </Card>
             </div>
           ) : (

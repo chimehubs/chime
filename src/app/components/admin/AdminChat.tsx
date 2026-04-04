@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, User, Send, Paperclip, Search, X } from 'lucide-react';
+import { ArrowLeft, User, Send, Paperclip, Search, X, CheckCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
@@ -22,6 +22,7 @@ type ThreadRow = {
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
+const USER_ONLINE_WINDOW_MS = 45000;
 
 function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   const ext = (fileName.split('.').pop() || '').toLowerCase();
@@ -29,10 +30,56 @@ function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(attachmentUrl || '');
 }
 
+function sortMessages(items: ChatMessage[]) {
+  return [...items].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aTime - bTime;
+  });
+}
+
+function sortThreadRows(items: ThreadRow[]) {
+  return [...items].sort((a, b) => {
+    const aTime = a.lastMessage?.created_at ? new Date(a.lastMessage.created_at).getTime() : 0;
+    const bTime = b.lastMessage?.created_at ? new Date(b.lastMessage.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
+function isUserOnline(profile?: Profile | null) {
+  if (!profile?.chat_last_seen_at) return false;
+  return Date.now() - new Date(profile.chat_last_seen_at).getTime() <= USER_ONLINE_WINDOW_MS;
+}
+
+function formatPresence(profile?: Profile | null) {
+  if (!profile?.chat_last_seen_at) return 'No recent activity';
+
+  if (isUserOnline(profile)) {
+    return 'Online';
+  }
+
+  const lastSeen = new Date(profile.chat_last_seen_at);
+  const diffMs = Date.now() - lastSeen.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) return 'Last seen just now';
+  if (diffMinutes < 60) return `Last seen ${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+
+  return `Last seen ${lastSeen.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
+}
+
 export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const [view, setView] = useState<'list' | 'chat'>('list');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
-  const [selectedThread, setSelectedThread] = useState<ThreadRow | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,78 +89,222 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const threadsRef = useRef<ThreadRow[]>([]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const selectedThread = threads.find((row) => row.thread.id === selectedThreadId) || null;
 
-    const loadThreads = async () => {
-      const [threadsData, profiles] = await Promise.all([
-        supabaseDbService.getAllChatThreads(),
-        supabaseDbService.getAllProfiles(),
-      ]);
+  const upsertMessage = useCallback((msg: ChatMessage) => {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === msg.id);
+      if (existingIndex === -1) {
+        return sortMessages([...prev, msg]);
+      }
 
-      const profileById = new Map(profiles.map((p) => [p.id, p]));
-      const threadIds = threadsData.map((t) => t.id);
-      const allMessages = await supabaseDbService.getChatMessagesForThreads(threadIds);
-      const messagesByThread = new Map<string, ChatMessage[]>();
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...msg };
+      return sortMessages(next);
+    });
+  }, []);
 
-      allMessages.forEach((msg) => {
-        const list = messagesByThread.get(msg.thread_id) || [];
-        list.push(msg);
-        messagesByThread.set(msg.thread_id, list);
-      });
+  const loadThreads = useCallback(async () => {
+    const [threadsData, profiles] = await Promise.all([
+      supabaseDbService.getAllChatThreads(),
+      supabaseDbService.getAllProfiles(),
+    ]);
 
-      const rows = threadsData.map((thread) => {
-        const msgs = messagesByThread.get(thread.id) || [];
-        const lastMessage = msgs.length ? msgs[msgs.length - 1] : null;
-        const unreadCount = msgs.filter((m) => m.sender_type === 'user' && !m.read).length;
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const threadIds = threadsData.map((thread) => thread.id);
+    const allMessages = sortMessages(await supabaseDbService.getChatMessagesForThreads(threadIds));
+    const messagesByThread = new Map<string, ChatMessage[]>();
+
+    allMessages.forEach((msg) => {
+      const list = messagesByThread.get(msg.thread_id) || [];
+      list.push(msg);
+      messagesByThread.set(msg.thread_id, list);
+    });
+
+    const rows = sortThreadRows(
+      threadsData.map((thread) => {
+        const threadMessages = messagesByThread.get(thread.id) || [];
+        const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
         return {
           thread,
           profile: profileById.get(thread.user_id) || null,
           lastMessage,
-          unreadCount,
+          unreadCount: threadMessages.filter((msg) => msg.sender_type === 'user' && !msg.read).length,
         } as ThreadRow;
-      });
+      })
+    );
 
-      rows.sort((a, b) => {
-        const aTime = a.lastMessage?.created_at ? new Date(a.lastMessage.created_at).getTime() : 0;
-        const bTime = b.lastMessage?.created_at ? new Date(b.lastMessage.created_at).getTime() : 0;
-        return bTime - aTime;
-      });
+    setThreads(rows);
 
-      setThreads(rows);
-      if (selectedThread) {
-        const updated = rows.find((row) => row.thread.id === selectedThread.thread.id) || null;
-        setSelectedThread(updated);
-        setMessages(messagesByThread.get(selectedThread.thread.id) || []);
+    if (selectedThreadId) {
+      const selectedExists = rows.some((row) => row.thread.id === selectedThreadId);
+      if (!selectedExists) {
+        setSelectedThreadId(null);
+        setMessages([]);
+        return;
       }
-    };
-
-    loadThreads();
-  }, [isOpen]);
+      setMessages(sortMessages(messagesByThread.get(selectedThreadId) || []));
+    }
+  }, [selectedThreadId]);
 
   useEffect(() => {
-    if (!selectedThread) return;
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void loadThreads();
+  }, [isOpen, loadThreads]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const client = getClient();
     if (!client) return;
 
     const channel = client
-      .channel(`admin-chat:${selectedThread.thread.id}`)
+      .channel('admin-chat:overview')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${selectedThread.thread.id}` },
+        { event: 'INSERT', schema: 'public', table: 'chat_threads' },
+        (payload) => {
+          const thread = payload.new as ChatThread;
+          if (threadsRef.current.some((row) => row.thread.id === thread.id)) {
+            return;
+          }
+
+          void (async () => {
+            const profile = await supabaseDbService.getProfile(thread.user_id);
+            setThreads((prev) =>
+              prev.some((row) => row.thread.id === thread.id)
+                ? prev
+                : sortThreadRows([
+                    ...prev,
+                    {
+                      thread,
+                      profile,
+                      lastMessage: null,
+                      unreadCount: 0,
+                    },
+                  ])
+            );
+          })();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const profile = payload.new as Profile;
+          setThreads((prev) =>
+            prev.some((row) => row.thread.user_id === profile.id)
+              ? prev.map((row) =>
+                  row.thread.user_id === profile.id
+                    ? { ...row, profile: { ...(row.profile || {}), ...profile } }
+                    : row
+                )
+              : prev
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
         (payload) => {
           const msg = payload.new as ChatMessage;
-          setMessages((prev) => [...prev, msg]);
-          if (msg.sender_type === 'user') {
-            setThreads((prev) =>
+          const isSelectedChatOpen = view === 'chat' && selectedThreadId === msg.thread_id;
+
+          if (selectedThreadId === msg.thread_id) {
+            upsertMessage(msg);
+          }
+
+          setThreads((prev) => {
+            const found = prev.some((row) => row.thread.id === msg.thread_id);
+            if (!found) return prev;
+
+            return sortThreadRows(
               prev.map((row) =>
-                row.thread.id === selectedThread.thread.id
-                  ? { ...row, unreadCount: row.unreadCount + 1, lastMessage: msg }
+                row.thread.id === msg.thread_id
+                  ? {
+                      ...row,
+                      lastMessage: msg,
+                      unreadCount:
+                        msg.sender_type === 'user'
+                          ? isSelectedChatOpen
+                            ? 0
+                            : row.unreadCount + 1
+                          : row.unreadCount,
+                    }
                   : row
               )
             );
+          });
+
+          if (msg.sender_type === 'user' && isSelectedChatOpen) {
+            void supabaseDbService.markThreadReadByAdmin(msg.thread_id);
           }
+
+          if (!threadsRef.current.some((row) => row.thread.id === msg.thread_id)) {
+            void (async () => {
+              const [thread, profile] = await Promise.all([
+                supabaseDbService.getChatThread(msg.thread_id),
+                supabaseDbService.getProfile(msg.user_id),
+              ]);
+
+              if (!thread) return;
+
+              setThreads((prev) =>
+                prev.some((row) => row.thread.id === thread.id)
+                  ? prev
+                  : sortThreadRows([
+                      ...prev,
+                      {
+                        thread,
+                        profile,
+                        lastMessage: msg,
+                        unreadCount: msg.sender_type === 'user' && !isSelectedChatOpen ? 1 : 0,
+                      },
+                    ])
+              );
+            })();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          const msg = payload.new as ChatMessage;
+
+          if (selectedThreadId === msg.thread_id) {
+            upsertMessage(msg);
+          }
+
+          setThreads((prev) =>
+            sortThreadRows(
+              prev.map((row) => {
+                if (row.thread.id !== msg.thread_id) {
+                  return row;
+                }
+
+                const lastMessageTime = row.lastMessage?.created_at ? new Date(row.lastMessage.created_at).getTime() : 0;
+                const updatedMessageTime = msg.created_at ? new Date(msg.created_at).getTime() : 0;
+                const shouldUpdateLastMessage =
+                  !row.lastMessage || row.lastMessage.id === msg.id || updatedMessageTime >= lastMessageTime;
+
+                return {
+                  ...row,
+                  lastMessage: shouldUpdateLastMessage
+                    ? row.lastMessage?.id === msg.id
+                      ? { ...row.lastMessage, ...msg }
+                      : msg
+                    : row.lastMessage,
+                  unreadCount: msg.sender_type === 'user' && msg.read ? 0 : row.unreadCount,
+                };
+              })
+            )
+          );
         }
       )
       .subscribe();
@@ -121,7 +312,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     return () => {
       client.removeChannel(channel);
     };
-  }, [selectedThread?.thread.id]);
+  }, [isOpen, selectedThreadId, upsertMessage, view]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -137,19 +328,24 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   }, [input]);
 
   const handleSelectThread = async (row: ThreadRow) => {
-    setSelectedThread(row);
+    setSelectedThreadId(row.thread.id);
     setView('chat');
-    const threadMessages = await supabaseDbService.getChatMessages(row.thread.id);
+
+    const threadMessages = sortMessages(await supabaseDbService.getChatMessages(row.thread.id));
     setMessages(threadMessages);
     setInput('');
+
     await supabaseDbService.markThreadReadByAdmin(row.thread.id);
     setThreads((prev) =>
-      prev.map((item) => (item.thread.id === row.thread.id ? { ...item, unreadCount: 0 } : item))
+      sortThreadRows(
+        prev.map((item) => (item.thread.id === row.thread.id ? { ...item, unreadCount: 0 } : item))
+      )
     );
   };
 
   const sendMessage = async () => {
     if (!input.trim() || !selectedThread || isSending) return;
+
     setIsSending(true);
     try {
       await supabaseDbService.sendChatMessage({
@@ -168,11 +364,13 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedThread || isUploading) return;
+
     const files = e.target.files;
     if (files && files[0]) {
       setIsUploading(true);
       const file = files[0];
       const path = `${selectedThread.thread.user_id}/${Date.now()}-${file.name}`;
+
       try {
         const url = await uploadFileToStorage('chat-attachments', path, file);
         if (url) {
@@ -200,9 +398,13 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
 
   if (!isOpen) return null;
 
-  const selectedProfileName = selectedThread?.profile?.name ||
+  const selectedProfileName =
+    selectedThread?.profile?.name ||
     `${selectedThread?.profile?.first_name || ''} ${selectedThread?.profile?.last_name || ''}`.trim() ||
-    selectedThread?.profile?.email || 'Customer';
+    selectedThread?.profile?.email ||
+    'Customer';
+  const selectedPresence = formatPresence(selectedThread?.profile);
+  const selectedUserIsOnline = isUserOnline(selectedThread?.profile);
   const canSend = Boolean(input.trim()) && !!selectedThread && !isSending;
 
   return (
@@ -229,7 +431,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
           />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(247,250,249,0.82),rgba(255,255,255,0.92))]" />
         </div>
-        {/* Header */}
+
         <motion.div className="sticky top-0 z-10 bg-white/72 border-b border-border px-4 py-4 flex items-center justify-between sm:rounded-t-3xl">
           <div className="flex items-center gap-3">
             {view === 'chat' && (
@@ -245,17 +447,15 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
               </motion.button>
             )}
             <div>
-              <div className="text-base font-semibold">
-                {view === 'list' ? 'Customer Support' : selectedProfileName}
-              </div>
+              <div className="text-base font-semibold">{view === 'list' ? 'Customer Support' : selectedProfileName}</div>
               {view === 'chat' && (
                 <div className="flex items-center gap-2 mt-1">
                   <motion.span
-                    animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="w-2 h-2 rounded-full bg-green-500"
+                    animate={selectedUserIsOnline ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+                    transition={selectedUserIsOnline ? { duration: 1.5, repeat: Infinity } : undefined}
+                    className={`w-2 h-2 rounded-full ${selectedUserIsOnline ? 'bg-green-500' : 'bg-slate-300'}`}
                   />
-                  <span className="text-xs text-muted-foreground">Online</span>
+                  <span className="text-xs text-muted-foreground">{selectedPresence}</span>
                 </div>
               )}
             </div>
@@ -271,7 +471,6 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
         </motion.div>
 
         {view === 'list' ? (
-          // Conversation List View
           <div className="relative flex-1 flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border">
               <div className="relative">
@@ -292,11 +491,16 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                 </div>
               ) : (
                 filteredThreads.map((row) => {
-                  const userName = row.profile?.name || `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() || 'Customer';
+                  const userName =
+                    row.profile?.name ||
+                    `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() ||
+                    'Customer';
                   const userEmail = row.profile?.email || '';
                   const lastMessageTime = row.lastMessage?.created_at
                     ? new Date(row.lastMessage.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })
                     : '';
+                  const userPresence = formatPresence(row.profile);
+                  const userOnline = isUserOnline(row.profile);
 
                   return (
                     <motion.button
@@ -312,13 +516,13 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 justify-between">
                             <p className="font-semibold text-sm">{userName}</p>
-                            {lastMessageTime && (
-                              <span className="text-xs text-muted-foreground">
-                                {lastMessageTime}
-                              </span>
-                            )}
+                            {lastMessageTime && <span className="text-xs text-muted-foreground">{lastMessageTime}</span>}
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                          {userEmail && <p className="text-xs text-muted-foreground truncate">{userEmail}</p>}
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className={`w-2 h-2 rounded-full ${userOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
+                            <span>{userPresence}</span>
+                          </div>
                           <p className="text-sm text-muted-foreground truncate mt-1">
                             {row.lastMessage?.message || 'No messages'}
                           </p>
@@ -342,9 +546,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
             </div>
           </div>
         ) : (
-          // Chat View
           <div className="relative flex-1 flex flex-col overflow-hidden">
-            {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -441,7 +643,10 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                         ) : (
                           <div className="text-sm break-words">{msg.message}</div>
                         )}
-                        <div className="text-xs text-white/70 mt-2">{timestamp}</div>
+                        <div className="mt-2 flex items-center justify-end gap-1 text-xs">
+                          <span className="text-white/70">{timestamp}</span>
+                          <CheckCheck className={`w-4 h-4 ${msg.read ? 'text-[#8ad8ff]' : 'text-white/70'}`} />
+                        </div>
                       </Card>
                     </div>
                   );
@@ -450,7 +655,6 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <div className="sticky bottom-0 bg-white/78 border-t border-border px-4 py-4 shadow-lg sm:rounded-b-3xl">
               <div className="flex items-end gap-2">
                 <input
@@ -470,9 +674,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                   <Paperclip className="w-5 h-5" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  {input.trim().length > 0 && (
-                    <div className="text-xs text-muted-foreground mb-1">User is typing...</div>
-                  )}
+                  {input.trim().length > 0 && <div className="text-xs text-muted-foreground mb-1">User is typing...</div>}
                   <textarea
                     ref={textareaRef}
                     value={input}

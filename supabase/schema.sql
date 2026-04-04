@@ -25,6 +25,7 @@ create table if not exists public.profiles (
   primary_account_type text check (primary_account_type in ('CHECKING', 'SAVINGS')),
   currency text not null default 'USD',
   avatar_url text,
+  chat_last_seen_at timestamptz,
   preferences jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -118,6 +119,7 @@ create table if not exists public.chat_messages (
   message text not null,
   attachment_url text,
   read boolean not null default false,
+  read_at timestamptz,
   created_at timestamptz not null default now(),
   constraint chat_messages_thread_user_fk
     foreign key (thread_id, user_id)
@@ -138,6 +140,7 @@ create index if not exists idx_transactions_created_at on public.transactions(cr
 create index if not exists idx_activities_user_id on public.activities(user_id);
 create index if not exists idx_notifications_user_id on public.notifications(user_id);
 create index if not exists idx_notifications_read on public.notifications(user_id, read);
+create index if not exists idx_profiles_chat_last_seen_at on public.profiles(chat_last_seen_at desc);
 create index if not exists idx_chat_threads_user_id on public.chat_threads(user_id);
 create index if not exists idx_chat_messages_thread_id on public.chat_messages(thread_id);
 create index if not exists idx_chat_messages_user_id on public.chat_messages(user_id);
@@ -760,6 +763,12 @@ grant usage, select on all sequences in schema public to authenticated;
 -- (safe to rerun)
 do $$
 begin
+  begin
+    alter publication supabase_realtime add table public.profiles;
+  exception when duplicate_object then
+    null;
+  end;
+
   begin
     alter publication supabase_realtime add table public.chat_threads;
   exception when duplicate_object then

@@ -22,6 +22,7 @@ export interface Profile {
   primary_account_type?: 'CHECKING' | 'SAVINGS';
   currency?: string;
   avatar_url?: string;
+  chat_last_seen_at?: string | null;
   preferences?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
@@ -108,6 +109,7 @@ export interface ChatMessage {
   message: string;
   attachment_url?: string;
   read: boolean;
+  read_at?: string | null;
   created_at?: string;
 }
 
@@ -458,6 +460,21 @@ class SupabaseDbService {
     return (data || []) as ChatThread[];
   }
 
+  async getChatThread(threadId: string): Promise<ChatThread | null> {
+    const client = getClient();
+    if (!client) return null;
+    const { data, error } = await client
+      .from('chat_threads')
+      .select('*')
+      .eq('id', threadId)
+      .maybeSingle();
+    if (error) {
+      this.logError('getChatThread', error);
+      return null;
+    }
+    return (data || null) as ChatThread | null;
+  }
+
   async getChatMessages(threadId: string, limit = 200): Promise<ChatMessage[]> {
     const client = getClient();
     if (!client) return [];
@@ -504,9 +521,10 @@ class SupabaseDbService {
   async markThreadRead(threadId: string, userId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
+    const readAt = new Date().toISOString();
     await client
       .from('chat_messages')
-      .update({ read: true })
+      .update({ read: true, read_at: readAt })
       .eq('thread_id', threadId)
       .eq('sender_type', 'admin')
       .eq('read', false);
@@ -515,7 +533,13 @@ class SupabaseDbService {
   async markThreadReadByAdmin(threadId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
-    await client.from('chat_messages').update({ read: true }).eq('thread_id', threadId).eq('sender_type', 'user');
+    const readAt = new Date().toISOString();
+    await client
+      .from('chat_messages')
+      .update({ read: true, read_at: readAt })
+      .eq('thread_id', threadId)
+      .eq('sender_type', 'user')
+      .eq('read', false);
   }
 
   async getUnreadAdminCount(): Promise<number> {
@@ -547,6 +571,18 @@ class SupabaseDbService {
       .eq('read', false);
     if (error) return 0;
     return count || 0;
+  }
+
+  async touchChatLastSeen(userId: string, timestamp = new Date().toISOString()): Promise<void> {
+    const client = getClient();
+    if (!client) return;
+    const { error } = await client
+      .from('profiles')
+      .update({ chat_last_seen_at: timestamp })
+      .eq('id', userId);
+    if (error) {
+      this.logError('touchChatLastSeen', error);
+    }
   }
 
   async createAccount(payload: {
