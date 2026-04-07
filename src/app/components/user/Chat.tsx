@@ -1,6 +1,6 @@
 // Chat.tsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, User, Send, Paperclip, X, CheckCheck } from 'lucide-react';
 import { Button } from '../ui/button';

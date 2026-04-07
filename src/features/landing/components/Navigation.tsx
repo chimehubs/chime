@@ -7,6 +7,7 @@ import { useAuthContext } from '../../../context/AuthProvider';
 import { signInWithSupabase, signOutFromSupabase } from '../../../services/supabaseAuthService';
 import { supabaseDbService } from '../../../services/supabaseDbService';
 import { UserProfile } from '../../../types';
+import { clearAdminDashboardPinVerification } from '../../../utils/adminSecurity';
 
 const ADMIN_SHORTCUT_EMAIL = import.meta.env.VITE_ADMIN_SHORTCUT_EMAIL || 'adminchime@gmail.com';
 const ADMIN_SHORTCUT_PASSWORD = import.meta.env.VITE_ADMIN_SHORTCUT_PASSWORD || '937388';
@@ -37,6 +38,7 @@ export const Navigation: React.FC = () => {
 
     if (logoClickCount.current >= 5) {
       logoClickCount.current = 0;
+      clearAdminDashboardPinVerification();
 
       if (isAuthenticated && user?.role === 'admin') {
         navigate('/admin');

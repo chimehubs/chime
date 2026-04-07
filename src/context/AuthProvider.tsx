@@ -4,6 +4,7 @@ import { setCredentials, clearCredentials } from '../store/slices/authSlice';
 import { UserProfile } from '../types';
 import { onAuthStateChangeSupabase, signOutFromSupabase } from '../services/supabaseAuthService';
 import { supabaseDbService } from '../services/supabaseDbService';
+import { clearAdminDashboardPinVerification } from '../utils/adminSecurity';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
@@ -63,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }));
         } else {
           // User is logged out
+          clearAdminDashboardPinVerification();
           setIsAuthenticated(false);
           setUser(null);
           dispatch(clearCredentials());
@@ -104,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOutFromSupabase();
       
       // Clear local state
+      clearAdminDashboardPinVerification();
       setIsAuthenticated(false);
       setUser(null);
       dispatch(clearCredentials());
@@ -111,6 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error during logout:', error);
       // Still clear local state even if Supabase logout fails
+      clearAdminDashboardPinVerification();
       setIsAuthenticated(false);
       setUser(null);
       dispatch(clearCredentials());

@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LayoutDashboard, Users, Receipt, ArrowDownRight, Settings, LogOut, UserCheck, Menu } from 'lucide-react';
 import { Logo } from '../Logo';

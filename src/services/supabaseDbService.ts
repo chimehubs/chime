@@ -372,13 +372,27 @@ class SupabaseDbService {
   async markNotificationsRead(userId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
-    await client.from('notifications').update({ read: true }).eq('user_id', userId);
+    const { error } = await client
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .or('read.is.false,read.is.null');
+    if (error) {
+      this.logError('markNotificationsRead', error);
+    }
   }
 
   async markNotificationRead(notificationId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
-    await client.from('notifications').update({ read: true }).eq('id', notificationId);
+    const { error } = await client
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId)
+      .or('read.is.false,read.is.null');
+    if (error) {
+      this.logError('markNotificationRead', error);
+    }
   }
 
   async deleteNotification(notificationId: string): Promise<void> {
@@ -542,13 +556,14 @@ class SupabaseDbService {
   async markThreadRead(threadId: string, userId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
-    void threadId;
     const readAt = new Date().toISOString();
     const { error } = await client
       .from('chat_messages')
       .update({ read: true, read_at: readAt })
+      .eq('thread_id', threadId)
       .eq('user_id', userId)
       .eq('sender_type', 'admin')
+      .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
       .or('read.is.false,read.is.null');
     if (error) {
       this.logError('markThreadRead', error);
@@ -559,23 +574,13 @@ class SupabaseDbService {
     const client = getClient();
     if (!client) return;
     const readAt = new Date().toISOString();
-    const { data: thread, error: threadError } = await client
-      .from('chat_threads')
-      .select('user_id')
-      .eq('id', threadId)
-      .maybeSingle();
-    if (threadError) {
-      this.logError('markThreadReadByAdmin.thread', threadError);
-    }
-
-    let query = client
+    const { error } = await client
       .from('chat_messages')
       .update({ read: true, read_at: readAt })
-      .eq('sender_type', 'user');
-
-    query = thread?.user_id ? query.eq('user_id', thread.user_id) : query.eq('thread_id', threadId);
-
-    const { error } = await query.or('read.is.false,read.is.null');
+      .eq('thread_id', threadId)
+      .eq('sender_type', 'user')
+      .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
+      .or('read.is.false,read.is.null');
     if (error) {
       this.logError('markThreadReadByAdmin', error);
     }

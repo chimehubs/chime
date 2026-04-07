@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Users, Receipt, ArrowDownRight, MessageSquare, Settings } from 'lucide-react';
 import { Card } from '../ui/card';
@@ -118,12 +118,16 @@ export default function AdminDashboard() {
     navigate('/admin/deposits');
   };
 
+  const handleOpenAdminSettings = () => {
+    navigate('/admin/settings');
+  };
+
   const adminPages = [
     { icon: MessageSquare, label: 'Customer Care', path: null, color: '#8b5cf6', bgColor: '#ede9fe', action: () => setShowChat(true), badge: notificationCounts.chat },
     { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', action: handleOpenAdminUsers, badge: notificationCounts.users },
     { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', action: handleOpenAdminTransactions, badge: notificationCounts.transactions },
     { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', action: handleOpenAdminDeposits, badge: notificationCounts.deposits },
-    { icon: Settings, label: 'Settings', path: '/admin/settings', color: '#06b6d4', bgColor: '#cffafe', badge: 0 }
+    { icon: Settings, label: 'Settings', path: '/admin/settings', color: '#06b6d4', bgColor: '#cffafe', action: handleOpenAdminSettings, badge: 0 },
   ];
 
   return (
@@ -140,7 +144,7 @@ export default function AdminDashboard() {
             {adminPages.map((page, index) => (
               <motion.button
                 key={page.label}
-                onClick={() => page.action ? page.action() : navigate(page.path!)}
+                onClick={page.action}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 initial={{ opacity: 0, y: 20 }}
