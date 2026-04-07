@@ -345,6 +345,9 @@ export default function Dashboard() {
 
     updateCounts();
     const interval = setInterval(updateCounts, 4000);
+    const handleChatStateChanged = () => {
+      void updateCounts();
+    };
     const client = getClient();
     const channel = client
       ?.channel(`user-dashboard:chat-count:${user.id}`)
@@ -356,9 +359,11 @@ export default function Dashboard() {
         }
       )
       .subscribe();
+    window.addEventListener('user-chat-state-changed', handleChatStateChanged);
 
     return () => {
       clearInterval(interval);
+      window.removeEventListener('user-chat-state-changed', handleChatStateChanged);
       if (channel && client) {
         client.removeChannel(channel);
       }
@@ -906,7 +911,7 @@ export default function Dashboard() {
               {[
                 { label: 'Account Settings', icon: User },
                 { label: 'Security', icon: Eye },
-                { label: 'Customer Care', icon: MessageCircle, action: () => navigate('/chat', { state: { from: '/dashboard' } }) },
+                { label: 'Customer Care', icon: MessageCircle, action: handleNavigateToChat },
                 { label: 'Support', icon: Receipt }
               ].map((item) => (
                 <button

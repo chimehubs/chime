@@ -95,6 +95,10 @@ export default function AdminUsers() {
   const [isSavingControls, setIsSavingControls] = useState(false);
   const [isTogglingFreeze, setIsTogglingFreeze] = useState(false);
 
+  React.useEffect(() => {
+    window.localStorage.setItem('admin-dashboard:users-viewed-at', new Date().toISOString());
+  }, []);
+
   const isProfileLiquidated = (profile: Profile, account?: Account | null) => {
     const lifecycle = profile.preferences?.accountLifecycle;
     const freezeState = getActiveFreezeState(profile.preferences);

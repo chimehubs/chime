@@ -284,6 +284,12 @@ export default function AdminTransactions() {
   const [selectedRecord, setSelectedRecord] = useState<AdminRecord | null>(null);
 
   useEffect(() => {
+    const now = new Date().toISOString();
+    window.localStorage.setItem('admin-dashboard:transactions-viewed-at', now);
+    window.localStorage.setItem('admin-dashboard:deposits-viewed-at', now);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadRecords = async () => {

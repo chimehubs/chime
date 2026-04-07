@@ -2,6 +2,7 @@ import { getClient } from './supabaseClient';
 
 export type UserStatus = 'UNREGISTERED' | 'ACTIVE' | 'SUSPENDED';
 export type UserRole = 'user' | 'admin';
+export const ADMIN_CHAT_DELETED_SENTINEL = '__ADMIN_CHAT_DELETED__';
 
 export interface Profile {
   id: string;
@@ -111,6 +112,10 @@ export interface ChatMessage {
   read: boolean;
   read_at?: string | null;
   created_at?: string;
+}
+
+export function isChatMessageHidden(message?: Pick<ChatMessage, 'message'> | null) {
+  return message?.message === ADMIN_CHAT_DELETED_SENTINEL;
 }
 
 class SupabaseDbService {
@@ -504,7 +509,7 @@ class SupabaseDbService {
       this.logError('getChatMessages', error);
       return [];
     }
-    return (data || []) as ChatMessage[];
+    return ((data || []) as ChatMessage[]).filter((message) => !isChatMessageHidden(message));
   }
 
   async getChatMessagesForThreads(threadIds: string[]): Promise<ChatMessage[]> {
@@ -516,7 +521,7 @@ class SupabaseDbService {
       .in('thread_id', threadIds)
       .order('created_at', { ascending: true });
     if (error) return [];
-    return (data || []) as ChatMessage[];
+    return ((data || []) as ChatMessage[]).filter((message) => !isChatMessageHidden(message));
   }
 
   async sendChatMessage(payload: Omit<ChatMessage, 'id' | 'created_at'>): Promise<ChatMessage | null> {
@@ -583,6 +588,7 @@ class SupabaseDbService {
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
       .eq('sender_type', 'user')
+      .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
       .or('read.is.false,read.is.null');
     if (error) return 0;
     return count || 0;
@@ -596,6 +602,7 @@ class SupabaseDbService {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('sender_type', 'admin')
+      .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
       .or('read.is.false,read.is.null');
     if (error) return 0;
     return count || 0;
@@ -621,17 +628,13 @@ class SupabaseDbService {
   }
 
   async deleteChatMessage(messageId: string): Promise<boolean> {
-    const client = getClient();
-    if (!client) return false;
-    const { error } = await client
-      .from('chat_messages')
-      .delete()
-      .eq('id', messageId);
-    if (error) {
-      this.logError('deleteChatMessage', error);
-      return false;
-    }
-    return true;
+    const deleted = await this.updateChatMessage(messageId, {
+      message: ADMIN_CHAT_DELETED_SENTINEL,
+      attachment_url: null,
+      read: true,
+      read_at: new Date().toISOString(),
+    });
+    return Boolean(deleted);
   }
 
   async touchChatLastSeen(userId: string, timestamp = new Date().toISOString()): Promise<void> {

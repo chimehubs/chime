@@ -32,6 +32,10 @@ export default function AdminDeposits() {
   const [balancesByAccount, setBalancesByAccount] = useState<Map<string, number>>(new Map());
 
   React.useEffect(() => {
+    window.localStorage.setItem('admin-dashboard:deposits-viewed-at', new Date().toISOString());
+  }, []);
+
+  React.useEffect(() => {
     const loadDeposits = async () => {
       const [profiles, accounts, transactions] = await Promise.all([
         supabaseDbService.getAllProfiles(),

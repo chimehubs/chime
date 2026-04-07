@@ -4,12 +4,13 @@ import { ArrowLeft, User, Send, Paperclip, Search, X, CheckCheck, Pencil, Trash2
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
-import { supabaseDbService, type ChatMessage, type ChatThread, type Profile } from '../../../services/supabaseDbService';
+import { isChatMessageHidden, supabaseDbService, type ChatMessage, type ChatThread, type Profile } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 
 interface AdminChatProps {
   isOpen: boolean;
   onClose: () => void;
+  onUnreadCountChange?: (count: number) => void;
 }
 
 type ThreadRow = {
@@ -76,7 +77,7 @@ function formatPresence(profile?: Profile | null, now = Date.now()) {
   })}`;
 }
 
-export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
+export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: AdminChatProps) {
   const [view, setView] = useState<'list' | 'chat'>('list');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -98,6 +99,11 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const selectedThread = threads.find((row) => row.thread.id === selectedThreadId) || null;
 
   const upsertMessage = useCallback((msg: ChatMessage) => {
+    if (isChatMessageHidden(msg)) {
+      setMessages((prev) => prev.filter((item) => item.id !== msg.id));
+      return;
+    }
+
     setMessages((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === msg.id);
       if (existingIndex === -1) {
@@ -166,6 +172,10 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   useEffect(() => {
     threadsRef.current = threads;
   }, [threads]);
+
+  useEffect(() => {
+    onUnreadCountChange?.(threads.reduce((sum, row) => sum + row.unreadCount, 0));
+  }, [onUnreadCountChange, threads]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -308,6 +318,14 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
         (payload) => {
           const msg = payload.new as ChatMessage;
 
+          if (isChatMessageHidden(msg)) {
+            if (selectedThreadId === msg.thread_id) {
+              removeMessage(msg.id);
+            }
+            void loadThreads();
+            return;
+          }
+
           if (selectedThreadId === msg.thread_id) {
             upsertMessage(msg);
           }
@@ -353,7 +371,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     return () => {
       client.removeChannel(channel);
     };
-  }, [isOpen, loadThreads, selectedThreadId, upsertMessage, view]);
+  }, [isOpen, loadThreads, removeMessage, selectedThreadId, upsertMessage, view]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

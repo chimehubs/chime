@@ -6,7 +6,7 @@ import { ArrowLeft, User, Send, Paperclip, X, CheckCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { useAuthContext } from '../../../context/AuthProvider';
-import { supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
+import { isChatMessageHidden, supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 import { useToast } from '../../../context/ToastProvider';
 import { getActiveFreezeState, type AccountFreezeState } from './userAccountState';
@@ -58,7 +58,16 @@ export default function Chat() {
   const welcomeMessage = 'Hello! Welcome to Chimehubs customer support. How can we assist you today?';
   const { addToast } = useToast();
 
+  const notifyChatStateChanged = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('user-chat-state-changed'));
+  }, []);
+
   const upsertMessage = useCallback((msg: ChatMessage) => {
+    if (isChatMessageHidden(msg)) {
+      setMessages((prev) => prev.filter((item) => item.id !== msg.id));
+      return;
+    }
+
     setMessages((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === msg.id);
       if (existingIndex === -1) {
@@ -75,7 +84,8 @@ export default function Chat() {
     const latest = sortMessages(await supabaseDbService.getChatMessages(activeThreadId));
     setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
     setHasExistingMessages(latest.length > 0);
-  }, []);
+    notifyChatStateChanged();
+  }, [notifyChatStateChanged]);
 
   const resolveThread = useCallback(async (userId: string) => {
     const firstAttempt = await supabaseDbService.getOrCreateChatThread(userId);
@@ -126,9 +136,10 @@ export default function Chat() {
       setMessages(sortMessages(existing));
       setHasExistingMessages(existing.length > 0);
       await supabaseDbService.markThreadRead(thread.id, user.id);
+      notifyChatStateChanged();
     };
     loadChat();
-  }, [user?.id, resolveThread, addToast]);
+  }, [user?.id, resolveThread, addToast, notifyChatStateChanged]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -145,6 +156,7 @@ export default function Chat() {
           setHasExistingMessages(true);
           if (msg.sender_type === 'admin' && user?.id) {
             await supabaseDbService.markThreadRead(threadId, user.id);
+            notifyChatStateChanged();
           }
         }
       )
@@ -153,6 +165,10 @@ export default function Chat() {
         { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
         (payload) => {
           const msg = payload.new as ChatMessage;
+          if (isChatMessageHidden(msg)) {
+            void refreshMessages(threadId);
+            return;
+          }
           upsertMessage(msg);
         }
       )
@@ -168,7 +184,7 @@ export default function Chat() {
     return () => {
       client.removeChannel(channel);
     };
-  }, [refreshMessages, threadId, upsertMessage, user?.id]);
+  }, [notifyChatStateChanged, refreshMessages, threadId, upsertMessage, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -242,13 +258,14 @@ export default function Chat() {
       if (!isMounted) return;
       setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
       setHasExistingMessages(latest.length > 0);
+      notifyChatStateChanged();
     };
     const interval = setInterval(poll, 5000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [threadId]);
+  }, [notifyChatStateChanged, threadId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -291,6 +308,7 @@ export default function Chat() {
       upsertMessage(saved);
       setHasExistingMessages(true);
       await supabaseDbService.markThreadRead(thread.id, user.id);
+      notifyChatStateChanged();
       setInput('');
     } finally {
       setIsSending(false);
@@ -334,6 +352,7 @@ export default function Chat() {
         upsertMessage(saved);
         setHasExistingMessages(true);
         await supabaseDbService.markThreadRead(thread.id, user.id);
+        notifyChatStateChanged();
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
         setIsUploading(false);

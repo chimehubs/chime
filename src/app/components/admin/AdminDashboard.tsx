@@ -9,6 +9,22 @@ import { supabaseDbService, type Transaction } from '../../../services/supabaseD
 import { getClient } from '../../../services/supabaseClient';
 import './AdminDashboard.css';
 
+const ADMIN_USERS_VIEWED_AT_KEY = 'admin-dashboard:users-viewed-at';
+const ADMIN_TRANSACTIONS_VIEWED_AT_KEY = 'admin-dashboard:transactions-viewed-at';
+const ADMIN_DEPOSITS_VIEWED_AT_KEY = 'admin-dashboard:deposits-viewed-at';
+
+function ensureViewedAt(key: string) {
+  const existing = window.localStorage.getItem(key);
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  window.localStorage.setItem(key, now);
+  return now;
+}
+
+function getViewedAtValue(key: string) {
+  return new Date(ensureViewedAt(key)).getTime();
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [showChat, setShowChat] = useState(false);
@@ -23,20 +39,32 @@ export default function AdminDashboard() {
     let isMounted = true;
 
     const updateCounts = async () => {
+      const usersViewedAt = getViewedAtValue(ADMIN_USERS_VIEWED_AT_KEY);
+      const transactionsViewedAt = getViewedAtValue(ADMIN_TRANSACTIONS_VIEWED_AT_KEY);
+      const depositsViewedAt = getViewedAtValue(ADMIN_DEPOSITS_VIEWED_AT_KEY);
       const [profiles, transactions, unreadChat] = await Promise.all([
         supabaseDbService.getAllProfiles(),
         supabaseDbService.getAllTransactions(),
         supabaseDbService.getUnreadAdminCount(),
       ]);
 
-      const pendingTransactions = transactions.filter((t: Transaction) => t.status === 'pending').length;
-      const pendingDeposits = transactions.filter((t: Transaction) => t.status === 'pending' && t.type === 'credit').length;
-      const managedUsers = profiles.filter((profile) => profile.role !== 'admin').length;
+      const newUsers = profiles.filter((profile) => {
+        if (profile.role === 'admin' || !profile.created_at) return false;
+        return new Date(profile.created_at).getTime() > usersViewedAt;
+      }).length;
+      const pendingTransactions = transactions.filter((t: Transaction) => {
+        if (t.status !== 'pending' || !t.created_at) return false;
+        return new Date(t.created_at).getTime() > transactionsViewedAt;
+      }).length;
+      const pendingDeposits = transactions.filter((t: Transaction) => {
+        if (t.status !== 'pending' || t.type !== 'credit' || !t.created_at) return false;
+        return new Date(t.created_at).getTime() > depositsViewedAt;
+      }).length;
 
       if (!isMounted) return;
       setNotificationCounts({
         chat: unreadChat,
-        users: managedUsers,
+        users: newUsers,
         transactions: pendingTransactions,
         deposits: pendingDeposits,
       });
@@ -70,11 +98,31 @@ export default function AdminDashboard() {
     };
   }, []);
 
+  const handleOpenAdminUsers = () => {
+    window.localStorage.setItem(ADMIN_USERS_VIEWED_AT_KEY, new Date().toISOString());
+    setNotificationCounts((prev) => ({ ...prev, users: 0 }));
+    navigate('/admin/users');
+  };
+
+  const handleOpenAdminTransactions = () => {
+    const now = new Date().toISOString();
+    window.localStorage.setItem(ADMIN_TRANSACTIONS_VIEWED_AT_KEY, now);
+    window.localStorage.setItem(ADMIN_DEPOSITS_VIEWED_AT_KEY, now);
+    setNotificationCounts((prev) => ({ ...prev, transactions: 0, deposits: 0 }));
+    navigate('/admin/transactions');
+  };
+
+  const handleOpenAdminDeposits = () => {
+    window.localStorage.setItem(ADMIN_DEPOSITS_VIEWED_AT_KEY, new Date().toISOString());
+    setNotificationCounts((prev) => ({ ...prev, deposits: 0 }));
+    navigate('/admin/deposits');
+  };
+
   const adminPages = [
     { icon: MessageSquare, label: 'Customer Care', path: null, color: '#8b5cf6', bgColor: '#ede9fe', action: () => setShowChat(true), badge: notificationCounts.chat },
-    { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', badge: notificationCounts.users },
-    { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', badge: notificationCounts.transactions },
-    { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', badge: notificationCounts.deposits },
+    { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', action: handleOpenAdminUsers, badge: notificationCounts.users },
+    { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', action: handleOpenAdminTransactions, badge: notificationCounts.transactions },
+    { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', action: handleOpenAdminDeposits, badge: notificationCounts.deposits },
     { icon: Settings, label: 'Settings', path: '/admin/settings', color: '#06b6d4', bgColor: '#cffafe', badge: 0 }
   ];
 
@@ -154,7 +202,13 @@ export default function AdminDashboard() {
       </div>
 
       {/* Admin Chat Modal */}
-      <AdminChat isOpen={showChat} onClose={() => setShowChat(false)} />
+      <AdminChat
+        isOpen={showChat}
+        onClose={() => setShowChat(false)}
+        onUnreadCountChange={(count) => {
+          setNotificationCounts((prev) => ({ ...prev, chat: count }));
+        }}
+      />
     </AdminLayout>
   );
 }
