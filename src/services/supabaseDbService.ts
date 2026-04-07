@@ -537,25 +537,43 @@ class SupabaseDbService {
   async markThreadRead(threadId: string, userId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
+    void threadId;
     const readAt = new Date().toISOString();
-    await client
+    const { error } = await client
       .from('chat_messages')
       .update({ read: true, read_at: readAt })
-      .eq('thread_id', threadId)
+      .eq('user_id', userId)
       .eq('sender_type', 'admin')
-      .eq('read', false);
+      .or('read.is.false,read.is.null');
+    if (error) {
+      this.logError('markThreadRead', error);
+    }
   }
 
   async markThreadReadByAdmin(threadId: string): Promise<void> {
     const client = getClient();
     if (!client) return;
     const readAt = new Date().toISOString();
-    await client
+    const { data: thread, error: threadError } = await client
+      .from('chat_threads')
+      .select('user_id')
+      .eq('id', threadId)
+      .maybeSingle();
+    if (threadError) {
+      this.logError('markThreadReadByAdmin.thread', threadError);
+    }
+
+    let query = client
       .from('chat_messages')
       .update({ read: true, read_at: readAt })
-      .eq('thread_id', threadId)
-      .eq('sender_type', 'user')
-      .eq('read', false);
+      .eq('sender_type', 'user');
+
+    query = thread?.user_id ? query.eq('user_id', thread.user_id) : query.eq('thread_id', threadId);
+
+    const { error } = await query.or('read.is.false,read.is.null');
+    if (error) {
+      this.logError('markThreadReadByAdmin', error);
+    }
   }
 
   async getUnreadAdminCount(): Promise<number> {
@@ -565,7 +583,7 @@ class SupabaseDbService {
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
       .eq('sender_type', 'user')
-      .eq('read', false);
+      .or('read.is.false,read.is.null');
     if (error) return 0;
     return count || 0;
   }
@@ -573,20 +591,47 @@ class SupabaseDbService {
   async getUnreadUserChatCount(userId: string): Promise<number> {
     const client = getClient();
     if (!client) return 0;
-    const { data: thread } = await client
-      .from('chat_threads')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (!thread?.id) return 0;
     const { count, error } = await client
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
-      .eq('thread_id', thread.id)
+      .eq('user_id', userId)
       .eq('sender_type', 'admin')
-      .eq('read', false);
+      .or('read.is.false,read.is.null');
     if (error) return 0;
     return count || 0;
+  }
+
+  async updateChatMessage(
+    messageId: string,
+    updates: Partial<Pick<ChatMessage, 'message' | 'attachment_url' | 'read' | 'read_at'>>
+  ): Promise<ChatMessage | null> {
+    const client = getClient();
+    if (!client) return null;
+    const { data, error } = await client
+      .from('chat_messages')
+      .update(updates)
+      .eq('id', messageId)
+      .select()
+      .single();
+    if (error) {
+      this.logError('updateChatMessage', error);
+      return null;
+    }
+    return data as ChatMessage;
+  }
+
+  async deleteChatMessage(messageId: string): Promise<boolean> {
+    const client = getClient();
+    if (!client) return false;
+    const { error } = await client
+      .from('chat_messages')
+      .delete()
+      .eq('id', messageId);
+    if (error) {
+      this.logError('deleteChatMessage', error);
+      return false;
+    }
+    return true;
   }
 
   async touchChatLastSeen(userId: string, timestamp = new Date().toISOString()): Promise<void> {

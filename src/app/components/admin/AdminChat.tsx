@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, User, Send, Paperclip, Search, X, CheckCheck } from 'lucide-react';
+import { ArrowLeft, User, Send, Paperclip, Search, X, CheckCheck, Pencil, Trash2, Check } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
@@ -46,27 +46,27 @@ function sortThreadRows(items: ThreadRow[]) {
   });
 }
 
-function isUserOnline(profile?: Profile | null) {
+function isUserOnline(profile?: Profile | null, now = Date.now()) {
   if (!profile?.chat_last_seen_at) return false;
-  return Date.now() - new Date(profile.chat_last_seen_at).getTime() <= USER_ONLINE_WINDOW_MS;
+  return now - new Date(profile.chat_last_seen_at).getTime() <= USER_ONLINE_WINDOW_MS;
 }
 
-function formatPresence(profile?: Profile | null) {
+function formatPresence(profile?: Profile | null, now = Date.now()) {
   if (!profile?.chat_last_seen_at) return 'No recent activity';
 
-  if (isUserOnline(profile)) {
-    return 'Online';
+  if (isUserOnline(profile, now)) {
+    return 'Online now';
   }
 
   const lastSeen = new Date(profile.chat_last_seen_at);
-  const diffMs = Date.now() - lastSeen.getTime();
+  const diffMs = now - lastSeen.getTime();
   const diffMinutes = Math.floor(diffMs / 60000);
 
   if (diffMinutes < 1) return 'Last seen just now';
-  if (diffMinutes < 60) return `Last seen ${diffMinutes}m ago`;
+  if (diffMinutes < 60) return `Last seen ${diffMinutes} min ago`;
 
   const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+  if (diffHours < 24) return `Last seen ${diffHours} hr ago`;
 
   return `Last seen ${lastSeen.toLocaleString([], {
     month: 'short',
@@ -85,6 +85,10 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [imagePreview, setImagePreview] = useState<{ url: string; name?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -106,7 +110,16 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     });
   }, []);
 
-  const loadThreads = useCallback(async () => {
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((item) => item.id !== messageId));
+  }, []);
+
+  const resetEditingState = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft('');
+  }, []);
+
+  const loadThreads = useCallback(async (nextSelectedThreadId = selectedThreadId) => {
     const [threadsData, profiles] = await Promise.all([
       supabaseDbService.getAllChatThreads(),
       supabaseDbService.getAllProfiles(),
@@ -138,16 +151,17 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
 
     setThreads(rows);
 
-    if (selectedThreadId) {
-      const selectedExists = rows.some((row) => row.thread.id === selectedThreadId);
+    if (nextSelectedThreadId) {
+      const selectedExists = rows.some((row) => row.thread.id === nextSelectedThreadId);
       if (!selectedExists) {
         setSelectedThreadId(null);
         setMessages([]);
+        resetEditingState();
         return;
       }
-      setMessages(sortMessages(messagesByThread.get(selectedThreadId) || []));
+      setMessages(sortMessages(messagesByThread.get(nextSelectedThreadId) || []));
     }
-  }, [selectedThreadId]);
+  }, [resetEditingState, selectedThreadId]);
 
   useEffect(() => {
     threadsRef.current = threads;
@@ -155,8 +169,25 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
 
   useEffect(() => {
     if (!isOpen) return;
+    setPresenceNow(Date.now());
+    const interval = window.setInterval(() => {
+      setPresenceNow(Date.now());
+    }, 15000);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     void loadThreads();
   }, [isOpen, loadThreads]);
+
+  useEffect(() => {
+    if (view !== 'chat') {
+      resetEditingState();
+    }
+  }, [resetEditingState, view, selectedThreadId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -300,11 +331,21 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                       ? { ...row.lastMessage, ...msg }
                       : msg
                     : row.lastMessage,
-                  unreadCount: msg.sender_type === 'user' && msg.read ? 0 : row.unreadCount,
+                  unreadCount:
+                    msg.sender_type === 'user' && msg.read
+                      ? Math.max(0, row.unreadCount - 1)
+                      : row.unreadCount,
                 };
               })
             )
           );
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'chat_messages' },
+        () => {
+          void loadThreads();
         }
       )
       .subscribe();
@@ -312,7 +353,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     return () => {
       client.removeChannel(channel);
     };
-  }, [isOpen, selectedThreadId, upsertMessage, view]);
+  }, [isOpen, loadThreads, selectedThreadId, upsertMessage, view]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -327,6 +368,72 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
   }, [input]);
 
+  const handleStartEditingMessage = useCallback((message: ChatMessage) => {
+    if (message.sender_type !== 'admin' || message.attachment_url) return;
+    setEditingMessageId(message.id);
+    setEditDraft(message.message || '');
+  }, []);
+
+  const handleSaveEditedMessage = useCallback(async () => {
+    if (!editingMessageId) return;
+
+    const nextMessage = editDraft.trim();
+    if (!nextMessage) return;
+
+    const currentMessage = messages.find((message) => message.id === editingMessageId);
+    if (!currentMessage) {
+      resetEditingState();
+      return;
+    }
+
+    if (currentMessage.message === nextMessage) {
+      resetEditingState();
+      return;
+    }
+
+    setBusyMessageId(editingMessageId);
+    try {
+      const updated = await supabaseDbService.updateChatMessage(editingMessageId, {
+        message: nextMessage,
+      });
+      if (!updated) return;
+
+      upsertMessage(updated);
+      setThreads((prev) =>
+        sortThreadRows(
+          prev.map((row) =>
+            row.thread.id === updated.thread_id && row.lastMessage?.id === updated.id
+              ? { ...row, lastMessage: { ...row.lastMessage, ...updated } }
+              : row
+          )
+        )
+      );
+      resetEditingState();
+    } finally {
+      setBusyMessageId(null);
+    }
+  }, [editDraft, editingMessageId, messages, resetEditingState, upsertMessage]);
+
+  const handleDeleteMessage = useCallback(async (message: ChatMessage) => {
+    if (!window.confirm('Delete this message from the conversation?')) {
+      return;
+    }
+
+    setBusyMessageId(message.id);
+    try {
+      const deleted = await supabaseDbService.deleteChatMessage(message.id);
+      if (!deleted) return;
+
+      removeMessage(message.id);
+      if (editingMessageId === message.id) {
+        resetEditingState();
+      }
+      await loadThreads(selectedThreadId || undefined);
+    } finally {
+      setBusyMessageId(null);
+    }
+  }, [editingMessageId, loadThreads, removeMessage, resetEditingState, selectedThreadId]);
+
   const handleSelectThread = async (row: ThreadRow) => {
     setSelectedThreadId(row.thread.id);
     setView('chat');
@@ -336,11 +443,7 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     setInput('');
 
     await supabaseDbService.markThreadReadByAdmin(row.thread.id);
-    setThreads((prev) =>
-      sortThreadRows(
-        prev.map((item) => (item.thread.id === row.thread.id ? { ...item, unreadCount: 0 } : item))
-      )
-    );
+    await loadThreads(row.thread.id);
   };
 
   const sendMessage = async () => {
@@ -403,8 +506,8 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
     `${selectedThread?.profile?.first_name || ''} ${selectedThread?.profile?.last_name || ''}`.trim() ||
     selectedThread?.profile?.email ||
     'Customer';
-  const selectedPresence = formatPresence(selectedThread?.profile);
-  const selectedUserIsOnline = isUserOnline(selectedThread?.profile);
+  const selectedPresence = formatPresence(selectedThread?.profile, presenceNow);
+  const selectedUserIsOnline = isUserOnline(selectedThread?.profile, presenceNow);
   const canSend = Boolean(input.trim()) && !!selectedThread && !isSending;
 
   return (
@@ -499,8 +602,8 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                   const lastMessageTime = row.lastMessage?.created_at
                     ? new Date(row.lastMessage.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })
                     : '';
-                  const userPresence = formatPresence(row.profile);
-                  const userOnline = isUserOnline(row.profile);
+                  const userPresence = formatPresence(row.profile, presenceNow);
+                  const userOnline = isUserOnline(row.profile, presenceNow);
 
                   return (
                     <motion.button
@@ -565,6 +668,8 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                   const timestamp = msg.created_at
                     ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     : '';
+                  const isEditingThisMessage = editingMessageId === msg.id;
+                  const isBusyMessage = busyMessageId === msg.id;
 
                   return msg.sender_type === 'user' ? (
                     <div key={msg.id} className="flex justify-start">
@@ -612,7 +717,65 @@ export default function AdminChat({ isOpen, onClose }: AdminChatProps) {
                   ) : (
                     <div key={msg.id} className="flex justify-end">
                       <Card className="max-w-[80%] p-4 rounded-xl bg-[#00b388] text-white">
-                        {msg.attachment_url ? (
+                        <div className="mb-3 flex items-center justify-end gap-1">
+                          {!msg.attachment_url && !isEditingThisMessage && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditingMessage(msg)}
+                              disabled={!!busyMessageId}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/12 text-white/80 transition-colors hover:bg-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                              title="Edit message"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {!isEditingThisMessage && (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteMessage(msg)}
+                              disabled={!!busyMessageId}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/12 text-white/80 transition-colors hover:bg-red-500/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                              title="Delete message"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {isEditingThisMessage ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              rows={3}
+                              maxLength={1000}
+                              className="w-full rounded-xl border border-white/20 bg-white/12 px-3 py-2 text-sm text-white outline-none placeholder:text-white/55 resize-none"
+                              placeholder="Edit message..."
+                            />
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[11px] text-white/70">{editDraft.trim().length}/1000</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={resetEditingState}
+                                  disabled={isBusyMessage}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/12 text-white/80 transition-colors hover:bg-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  title="Cancel edit"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveEditedMessage()}
+                                  disabled={isBusyMessage || !editDraft.trim()}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#00b388] transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                  title="Save edit"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : msg.attachment_url ? (
                           <div className="space-y-2">
                             {isImage && (
                               <button

@@ -37,6 +37,7 @@ import TransactionDetailsModal from './TransactionDetailsModal';
 import FloatingSupportButton from './FloatingSupportButton';
 import { useAuthContext } from '../../../context/AuthProvider';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
+import { getClient } from '../../../services/supabaseClient';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 import { formatCurrency } from '../ui/utils';
@@ -332,17 +333,35 @@ export default function Dashboard() {
   }, [user?.id, user?.status]);
 
   useEffect(() => {
+    if (!user?.id) {
+      setChatMessageCount(0);
+      return;
+    }
+
     const updateCounts = async () => {
-      if (!user?.id) return;
       const unread = await supabaseDbService.getUnreadUserChatCount(user.id);
       setChatMessageCount(unread);
     };
 
     updateCounts();
     const interval = setInterval(updateCounts, 4000);
+    const client = getClient();
+    const channel = client
+      ?.channel(`user-dashboard:chat-count:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` },
+        () => {
+          void updateCounts();
+        }
+      )
+      .subscribe();
 
     return () => {
       clearInterval(interval);
+      if (channel && client) {
+        client.removeChannel(channel);
+      }
     };
   }, [user?.id]);
 

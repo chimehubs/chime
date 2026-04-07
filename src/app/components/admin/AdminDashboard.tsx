@@ -6,6 +6,7 @@ import { Card } from '../ui/card';
 import AdminLayout from './AdminLayout';
 import AdminChat from './AdminChat';
 import { supabaseDbService, type Transaction } from '../../../services/supabaseDbService';
+import { getClient } from '../../../services/supabaseClient';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
@@ -30,11 +31,12 @@ export default function AdminDashboard() {
 
       const pendingTransactions = transactions.filter((t: Transaction) => t.status === 'pending').length;
       const pendingDeposits = transactions.filter((t: Transaction) => t.status === 'pending' && t.type === 'credit').length;
+      const managedUsers = profiles.filter((profile) => profile.role !== 'admin').length;
 
       if (!isMounted) return;
       setNotificationCounts({
         chat: unreadChat,
-        users: profiles.length,
+        users: managedUsers,
         transactions: pendingTransactions,
         deposits: pendingDeposits,
       });
@@ -42,9 +44,29 @@ export default function AdminDashboard() {
 
     updateCounts();
     const interval = setInterval(updateCounts, 5000);
+    const client = getClient();
+    const channel = client
+      ?.channel('admin-dashboard:counts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => {
+        void updateCounts();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, () => {
+        void updateCounts();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, () => {
+        void updateCounts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        void updateCounts();
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (channel && client) {
+        client.removeChannel(channel);
+      }
     };
   }, []);
 

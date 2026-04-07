@@ -71,6 +71,12 @@ export default function Chat() {
     });
   }, []);
 
+  const refreshMessages = useCallback(async (activeThreadId: string) => {
+    const latest = sortMessages(await supabaseDbService.getChatMessages(activeThreadId));
+    setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
+    setHasExistingMessages(latest.length > 0);
+  }, []);
+
   const resolveThread = useCallback(async (userId: string) => {
     const firstAttempt = await supabaseDbService.getOrCreateChatThread(userId);
     if (firstAttempt?.id) return firstAttempt;
@@ -150,12 +156,19 @@ export default function Chat() {
           upsertMessage(msg);
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
+        () => {
+          void refreshMessages(threadId);
+        }
+      )
       .subscribe();
 
     return () => {
       client.removeChannel(channel);
     };
-  }, [threadId, upsertMessage, user?.id]);
+  }, [refreshMessages, threadId, upsertMessage, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -228,6 +241,7 @@ export default function Chat() {
       const latest = sortMessages(await supabaseDbService.getChatMessages(threadId));
       if (!isMounted) return;
       setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
+      setHasExistingMessages(latest.length > 0);
     };
     const interval = setInterval(poll, 5000);
     return () => {
