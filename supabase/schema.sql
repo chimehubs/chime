@@ -118,6 +118,7 @@ create table if not exists public.chat_messages (
   sender_type text not null check (sender_type in ('user', 'admin')),
   message text not null,
   attachment_url text,
+  reply_to_message_id uuid references public.chat_messages(id) on delete set null,
   read boolean not null default false,
   read_at timestamptz,
   created_at timestamptz not null default now(),
@@ -138,6 +139,7 @@ create index if not exists idx_transactions_user_id on public.transactions(user_
 create index if not exists idx_transactions_account_id on public.transactions(account_id);
 create index if not exists idx_transactions_created_at on public.transactions(created_at desc);
 create index if not exists idx_activities_user_id on public.activities(user_id);
+create index if not exists idx_chat_messages_reply_to_message_id on public.chat_messages(reply_to_message_id);
 create index if not exists idx_notifications_user_id on public.notifications(user_id);
 create index if not exists idx_notifications_read on public.notifications(user_id, read);
 create index if not exists idx_profiles_chat_last_seen_at on public.profiles(chat_last_seen_at desc);

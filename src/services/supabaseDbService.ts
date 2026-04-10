@@ -109,12 +109,18 @@ export interface ChatMessage {
   sender_type: 'user' | 'admin';
   message: string;
   attachment_url?: string;
+  reply_to_message_id?: string | null;
   read: boolean;
   read_at?: string | null;
   created_at?: string;
+  updated_at?: string;
 }
 
 export function isChatMessageHidden(message?: Pick<ChatMessage, 'message'> | null) {
+  return message?.message === ADMIN_CHAT_DELETED_SENTINEL;
+}
+
+export function isChatMessageDeleted(message?: Pick<ChatMessage, 'message'> | null) {
   return message?.message === ADMIN_CHAT_DELETED_SENTINEL;
 }
 
@@ -530,7 +536,7 @@ class SupabaseDbService {
       this.logError('getChatMessages', error);
       return [];
     }
-    return ((data || []) as ChatMessage[]).filter((message) => !isChatMessageHidden(message));
+    return (data || []) as ChatMessage[];
   }
 
   async getChatMessagesForThreads(threadIds: string[]): Promise<ChatMessage[]> {
@@ -542,7 +548,7 @@ class SupabaseDbService {
       .in('thread_id', threadIds)
       .order('created_at', { ascending: true });
     if (error) return [];
-    return ((data || []) as ChatMessage[]).filter((message) => !isChatMessageHidden(message));
+    return (data || []) as ChatMessage[];
   }
 
   async sendChatMessage(payload: Omit<ChatMessage, 'id' | 'created_at'>): Promise<ChatMessage | null> {
@@ -680,14 +686,13 @@ class SupabaseDbService {
     return data as ChatMessage;
   }
 
-  async deleteChatMessage(messageId: string): Promise<boolean> {
-    const deleted = await this.updateChatMessage(messageId, {
+  async deleteChatMessage(messageId: string): Promise<ChatMessage | null> {
+    return this.updateChatMessage(messageId, {
       message: ADMIN_CHAT_DELETED_SENTINEL,
       attachment_url: null,
       read: true,
       read_at: new Date().toISOString(),
     });
-    return Boolean(deleted);
   }
 
   async touchChatLastSeen(userId: string, timestamp = new Date().toISOString()): Promise<void> {

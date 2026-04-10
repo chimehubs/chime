@@ -2,11 +2,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, User, Send, Paperclip, X, CheckCheck } from 'lucide-react';
+import { ArrowLeft, User, Send, Paperclip, X, CheckCheck, Reply } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { useAuthContext } from '../../../context/AuthProvider';
-import { isChatMessageHidden, supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
+import { isChatMessageDeleted, supabaseDbService, type ChatMessage } from '../../../services/supabaseDbService';
 import { getClient, uploadFileToStorage } from '../../../services/supabaseClient';
 import { useToast } from '../../../context/ToastProvider';
 import { getActiveFreezeState, type AccountFreezeState } from './userAccountState';
@@ -33,6 +33,17 @@ const GLASS_DARK_BUBBLE = {
 } as const;
 const CHAT_INPUT_SHADOW = '0 14px 34px rgba(0, 72, 54, 0.2)';
 const CHAT_ACTION_SHADOW = '0 12px 28px rgba(0, 72, 54, 0.22)';
+const CHAT_REPLY_PANEL = 'linear-gradient(135deg, rgba(6, 78, 59, 0.92), rgba(16, 185, 129, 0.72))';
+
+const CHAT_HEADER_SAFE_AREA_STYLE = {
+  paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+  paddingBottom: '1rem',
+} as const;
+
+const CHAT_INPUT_SAFE_AREA_STYLE = {
+  paddingTop: '1rem',
+  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+} as const;
 
 function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   const ext = (fileName.split('.').pop() || '').toLowerCase();
@@ -50,8 +61,20 @@ function sortMessages(items: ChatMessage[]) {
 
 function getMessageSyncKey(items: ChatMessage[]) {
   return items
-    .map((msg) => `${msg.id}:${msg.message}:${msg.attachment_url || ''}:${msg.read ? 1 : 0}:${msg.read_at || ''}:${msg.created_at || ''}`)
+    .map((msg) => `${msg.id}:${msg.message}:${msg.attachment_url || ''}:${msg.read ? 1 : 0}:${msg.read_at || ''}:${msg.created_at || ''}:${msg.updated_at || ''}`)
     .join('|');
+}
+
+function hasMessageBeenEdited(message: ChatMessage) {
+  if (!message.updated_at || !message.created_at) return false;
+  return new Date(message.updated_at).getTime() - new Date(message.created_at).getTime() > 1000;
+}
+
+function getReplySnippet(message?: ChatMessage | null) {
+  if (!message) return 'Original message is no longer available';
+  if (isChatMessageDeleted(message)) return 'Message deleted';
+  if (message.attachment_url) return message.message || 'Attachment';
+  return message.message || 'Message';
 }
 
 export default function Chat() {
@@ -69,6 +92,7 @@ export default function Chat() {
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ url: string; name?: string } | null>(null);
+  const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -82,11 +106,6 @@ export default function Chat() {
   }, []);
 
   const upsertMessage = useCallback((msg: ChatMessage) => {
-    if (isChatMessageHidden(msg)) {
-      setMessages((prev) => prev.filter((item) => item.id !== msg.id));
-      return;
-    }
-
     setMessages((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === msg.id);
       if (existingIndex === -1) {
@@ -113,6 +132,11 @@ export default function Chat() {
     await new Promise((resolve) => window.setTimeout(resolve, 250));
     return supabaseDbService.getOrCreateChatThread(userId);
   }, []);
+
+  const getReplyTarget = useCallback(
+    (targetId?: string | null) => messages.find((message) => message.id === targetId) || null,
+    [messages]
+  );
 
   // Determine where to go back to
   const getBackPath = () => {
@@ -185,10 +209,6 @@ export default function Chat() {
         { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
         (payload) => {
           const msg = payload.new as ChatMessage;
-          if (isChatMessageHidden(msg)) {
-            void refreshMessages(threadId);
-            return;
-          }
           upsertMessage(msg);
         }
       )
@@ -304,10 +324,18 @@ export default function Chat() {
 
   const resetComposer = () => {
     setInput('');
+    setReplyToMessageId(null);
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = '40px';
     textarea.style.overflowY = 'hidden';
+  };
+
+  const handleReplyToMessage = (messageId: string) => {
+    setReplyToMessageId(messageId);
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
   };
 
   const sendMessage = async () => {
@@ -327,6 +355,7 @@ export default function Chat() {
         sender_type: 'user',
         message: input.trim(),
         attachment_url: null,
+        reply_to_message_id: replyToMessageId,
         read: false,
       });
 
@@ -373,6 +402,7 @@ export default function Chat() {
           sender_type: 'user',
           message: file.name,
           attachment_url: url,
+          reply_to_message_id: replyToMessageId,
           read: false,
         });
         if (!saved) {
@@ -385,6 +415,7 @@ export default function Chat() {
         await supabaseDbService.markThreadRead(thread.id, user.id);
         void supabaseDbService.sendUserChatSupportAlert(saved.id);
         notifyChatStateChanged();
+        resetComposer();
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
         setIsUploading(false);
@@ -393,9 +424,10 @@ export default function Chat() {
   };
 
   const canSend = Boolean(input.trim()) && input.length <= 1000 && !!user?.id && !isSending;
+  const activeReplyTarget = getReplyTarget(replyToMessageId);
 
   return (
-    <div className={`flex flex-col h-screen transition-colors ${
+    <div className={`flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col transition-colors ${
       darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-white'
     } relative overflow-hidden`}>
       <div className="pointer-events-none absolute inset-0">
@@ -410,10 +442,11 @@ export default function Chat() {
       </div>
       {/* Chat Header */}
       <motion.div
-        className="sticky top-0 z-10 flex items-center gap-4 border-b border-white/18 px-4 py-4 text-white"
+        className="sticky top-0 z-10 flex items-center gap-4 border-b border-white/18 px-4 text-white"
         style={{
           background: CHAT_BAR_GRADIENT,
           boxShadow: '0 12px 28px rgba(0, 72, 54, 0.2)',
+          ...CHAT_HEADER_SAFE_AREA_STYLE,
         }}
       >
         <motion.button 
@@ -438,7 +471,7 @@ export default function Chat() {
         </div>
       </motion.div>
       {/* Messages Area */}
-      <div className="relative flex-1 overflow-y-auto px-6 py-6">
+      <div className="relative flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
         {accountRestriction && (
           <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
             darkMode
@@ -478,10 +511,50 @@ export default function Chat() {
           const isVideo = VIDEO_EXTENSIONS.includes(ext);
           const isAudio = AUDIO_EXTENSIONS.includes(ext);
           const timestamp = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          const isDeletedMessage = isChatMessageDeleted(msg);
+          const wasEdited = hasMessageBeenEdited(msg);
+          const replyTarget = getReplyTarget(msg.reply_to_message_id);
+          const replyAuthor = replyTarget
+            ? replyTarget.sender_type === 'user'
+              ? 'You'
+              : 'Customer Care'
+            : 'Original';
 
           return msg.sender_type === 'user' ? (
-            <div key={msg.id} className="flex justify-end mb-4">
-              <Card className="max-w-[80%] rounded-xl border p-4 text-white" style={GLASS_GREEN_BUBBLE}>
+            <div key={msg.id} className="mb-4 flex justify-end">
+              <div className="relative flex max-w-[88%] items-center gap-2">
+                <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+                  <Reply className="h-4 w-4" />
+                </div>
+                <motion.div
+                  drag="x"
+                  dragSnapToOrigin
+                  dragConstraints={{ left: 0, right: 88 }}
+                  dragElastic={0.08}
+                  whileDrag={{ scale: 1.01 }}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.x > 56) {
+                      handleReplyToMessage(msg.id);
+                    }
+                  }}
+                  className="min-w-0"
+                >
+              <Card className="max-w-full rounded-xl border p-4 text-white" style={GLASS_GREEN_BUBBLE}>
+                {replyTarget && (
+                  <button
+                    type="button"
+                    onClick={() => handleReplyToMessage(replyTarget.id)}
+                    className="mb-3 block w-full rounded-2xl border border-white/18 bg-black/16 px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 h-10 w-1 rounded-full bg-emerald-100/90" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-50/92">{replyAuthor}</div>
+                        <div className="mt-1 line-clamp-2 text-xs text-white/82">{getReplySnippet(replyTarget)}</div>
+                      </div>
+                    </div>
+                  </button>
+                )}
                 {msg.attachment_url ? (
                   <div className="space-y-2">
                     {isImage && (
@@ -510,24 +583,61 @@ export default function Chat() {
                       <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-white/82">{msg.message}</a>
                     )}
                   </div>
+                ) : isDeletedMessage ? (
+                  <div className="text-sm italic text-white/78">You deleted this message</div>
                 ) : (
                   <div className="text-sm break-words whitespace-pre-wrap">{msg.message}</div>
                 )}
                 <div className="mt-2 flex items-center justify-end gap-1 text-xs">
+                  {wasEdited && !isDeletedMessage && <span className="text-white/55">edited</span>}
                   <span className="text-white/70">{timestamp}</span>
                   <CheckCheck className={`w-4 h-4 ${msg.read ? 'text-[#8ad8ff]' : 'text-white/70'}`} />
                 </div>
               </Card>
+                </motion.div>
+              </div>
             </div>
           ) : (
-            <div key={msg.id} className="flex justify-start mb-4">
-              <Card className="max-w-[80%] rounded-xl border p-4 text-white" style={GLASS_DARK_BUBBLE}>
+            <div key={msg.id} className="mb-4 flex justify-start">
+              <div className="relative flex max-w-[88%] items-center gap-2">
+                <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
+                  <Reply className="h-4 w-4" />
+                </div>
+                <motion.div
+                  drag="x"
+                  dragSnapToOrigin
+                  dragConstraints={{ left: 0, right: 88 }}
+                  dragElastic={0.08}
+                  whileDrag={{ scale: 1.01 }}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.x > 56) {
+                      handleReplyToMessage(msg.id);
+                    }
+                  }}
+                  className="min-w-0"
+                >
+              <Card className="max-w-full rounded-xl border p-4 text-white" style={GLASS_DARK_BUBBLE}>
                 <div className="flex items-start gap-2 mb-2">
                   <div className="w-6 h-6 rounded-full bg-white/12 flex items-center justify-center">
                     <User className="w-3 h-3 text-white" />
                   </div>
                   <span className="text-xs font-semibold text-white">Customer Care</span>
                 </div>
+                {replyTarget && (
+                  <button
+                    type="button"
+                    onClick={() => handleReplyToMessage(replyTarget.id)}
+                    className="mb-3 block w-full rounded-2xl border border-white/14 bg-white/8 px-3 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 h-10 w-1 rounded-full bg-[#39dba6]" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9ff7d4]">{replyAuthor}</div>
+                        <div className="mt-1 line-clamp-2 text-xs text-white/78">{getReplySnippet(replyTarget)}</div>
+                      </div>
+                    </div>
+                  </button>
+                )}
                 {msg.attachment_url ? (
                   <div className="space-y-2">
                     {isImage && (
@@ -558,11 +668,18 @@ export default function Chat() {
                       </a>
                     )}
                   </div>
+                ) : isDeletedMessage ? (
+                  <div className="text-sm italic text-white/78">Customer Care deleted this message</div>
                 ) : (
                   <div className="text-sm break-words whitespace-pre-wrap text-white">{msg.message}</div>
                 )}
-                <div className="mt-2 text-xs text-white/72">{timestamp}</div>
+                <div className="mt-2 flex items-center gap-1 text-xs text-white/72">
+                  {wasEdited && !isDeletedMessage && <span className="text-white/55">edited</span>}
+                  <span>{timestamp}</span>
+                </div>
               </Card>
+                </motion.div>
+              </div>
             </div>
           );
         })}
@@ -570,12 +687,41 @@ export default function Chat() {
       </div>
       {/* Input Area */}
       <div
-        className="sticky bottom-0 border-t border-white/18 px-4 py-4 shadow-lg"
+        className="sticky bottom-0 border-t border-white/18 px-4 shadow-lg"
         style={{
           background: CHAT_BAR_GRADIENT,
           boxShadow: '0 -12px 28px rgba(0, 72, 54, 0.22)',
+          ...CHAT_INPUT_SAFE_AREA_STYLE,
         }}
       >
+        {activeReplyTarget && (
+          <div
+            className="mb-3 rounded-[22px] border border-white/18 px-3 py-3 text-white shadow-[0_14px_30px_rgba(3,7,18,0.18)]"
+            style={{ background: CHAT_REPLY_PANEL }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-50/92">
+                  <Reply className="h-3.5 w-3.5" />
+                  <span>
+                    Replying to {activeReplyTarget.sender_type === 'user' ? 'yourself' : 'Customer Care'}
+                  </span>
+                </div>
+                <div className="mt-2 rounded-2xl border border-white/14 bg-black/16 px-3 py-2 text-sm text-white/86">
+                  {getReplySnippet(activeReplyTarget)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyToMessageId(null)}
+                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white/80 transition-colors hover:bg-white/16 hover:text-white"
+                title="Cancel reply"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <input
             ref={fileInputRef}
@@ -599,7 +745,7 @@ export default function Chat() {
           <div className="flex-1 min-w-0">
             {input.trim().length > 0 && (
               <div className="mb-1 text-xs text-white/82">
-                User is typing...
+                Drafting message...
               </div>
             )}
             <textarea
