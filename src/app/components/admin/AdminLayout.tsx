@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LayoutDashboard, Users, Receipt, ArrowDownRight, Settings, LogOut, UserCheck, Menu } from 'lucide-react';
 import { Logo } from '../Logo';
@@ -14,7 +14,6 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ title, subtitle, children }: AdminLayoutProps) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { logout } = useAuthContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -23,8 +22,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
     navigate('/');
   };
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
+  const handleNavigate = () => {
     setMobileMenuOpen(false);
   };
 
@@ -36,9 +34,7 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
     { id: 'settings', icon: Settings, label: 'Settings', path: '/admin/settings' },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
-
-  const SidebarContent = ({ onNavigate }: { onNavigate?: (path: string) => void }) => (
+  const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
@@ -53,18 +49,21 @@ export default function AdminLayout({ title, subtitle, children }: AdminLayoutPr
       <div className="flex-1 overflow-y-auto p-4">
         <nav className="space-y-1">
           {navItems.map((item) => (
-            <button
+            <NavLink
               key={item.id}
-              onClick={() => (onNavigate ? onNavigate(item.path) : navigate(item.path))}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                isActive(item.path)
-                  ? 'bg-[#00b388] text-white shadow-lg shadow-[#00b388]/20'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              }`}
+              to={item.path}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                  isActive
+                    ? 'bg-[#00b388] text-white shadow-lg shadow-[#00b388]/20'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`
+              }
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm font-medium">{item.label}</span>
-            </button>
+            </NavLink>
           ))}
         </nav>
       </div>

@@ -24,6 +24,25 @@ const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 const USER_ONLINE_WINDOW_MS = 45000;
+const CHAT_BACKGROUND_IMAGE =
+  'https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-cool-dark-green-new-theme-whatsapp.jpg';
+const CHAT_BAR_GRADIENT = 'linear-gradient(135deg, rgba(0, 116, 87, 0.98), rgba(0, 179, 136, 0.95), rgba(2, 86, 63, 0.98))';
+const GLASS_GREEN_BUBBLE = {
+  background: 'linear-gradient(135deg, rgba(29, 207, 159, 0.54), rgba(29, 207, 159, 0.3))',
+  borderColor: 'rgba(255, 255, 255, 0.26)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  boxShadow: '0 18px 40px rgba(0, 64, 48, 0.26)',
+} as const;
+const GLASS_DARK_BUBBLE = {
+  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.68))',
+  borderColor: 'rgba(255, 255, 255, 0.18)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  boxShadow: '0 18px 40px rgba(3, 7, 18, 0.34)',
+} as const;
+const CHAT_INPUT_SHADOW = '0 14px 34px rgba(0, 72, 54, 0.2)';
+const CHAT_ACTION_SHADOW = '0 12px 28px rgba(0, 72, 54, 0.22)';
 
 function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   const ext = (fileName.split('.').pop() || '').toLowerCase();
@@ -97,6 +116,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
   const threadsRef = useRef<ThreadRow[]>([]);
 
   const selectedThread = threads.find((row) => row.thread.id === selectedThreadId) || null;
+  const unreadCount = threads.reduce((sum, row) => sum + row.unreadCount, 0);
 
   const upsertMessage = useCallback((msg: ChatMessage) => {
     if (isChatMessageHidden(msg)) {
@@ -124,6 +144,39 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     setEditingMessageId(null);
     setEditDraft('');
   }, []);
+
+  const applyThreadReadState = useCallback((threadId: string, readAt = new Date().toISOString()) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.thread_id === threadId && message.sender_type === 'user' && !message.read
+          ? { ...message, read: true, read_at: readAt }
+          : message
+      )
+    );
+
+    setThreads((prev) =>
+      sortThreadRows(
+        prev.map((row) =>
+          row.thread.id === threadId
+            ? {
+                ...row,
+                unreadCount: 0,
+                lastMessage:
+                  row.lastMessage?.sender_type === 'user' && !row.lastMessage.read
+                    ? { ...row.lastMessage, read: true, read_at: readAt }
+                    : row.lastMessage,
+              }
+            : row
+        )
+      )
+    );
+  }, []);
+
+  const markThreadAsRead = useCallback(async (threadId: string) => {
+    const readAt = new Date().toISOString();
+    applyThreadReadState(threadId, readAt);
+    await supabaseDbService.markThreadReadByAdmin(threadId);
+  }, [applyThreadReadState]);
 
   const loadThreads = useCallback(async (nextSelectedThreadId = selectedThreadId) => {
     const [threadsData, profiles] = await Promise.all([
@@ -174,8 +227,13 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
   }, [threads]);
 
   useEffect(() => {
-    onUnreadCountChange?.(threads.reduce((sum, row) => sum + row.unreadCount, 0));
-  }, [onUnreadCountChange, threads]);
+    onUnreadCountChange?.(unreadCount);
+  }, [onUnreadCountChange, unreadCount]);
+
+  useEffect(() => {
+    if (!isOpen || view !== 'chat' || !selectedThreadId) return;
+    void markThreadAsRead(selectedThreadId);
+  }, [isOpen, markThreadAsRead, selectedThreadId, view]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -283,7 +341,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
           });
 
           if (msg.sender_type === 'user' && isSelectedChatOpen) {
-            void supabaseDbService.markThreadReadByAdmin(msg.thread_id);
+            void markThreadAsRead(msg.thread_id);
           }
 
           if (!threadsRef.current.some((row) => row.thread.id === msg.thread_id)) {
@@ -371,7 +429,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     return () => {
       client.removeChannel(channel);
     };
-  }, [isOpen, loadThreads, removeMessage, selectedThreadId, upsertMessage, view]);
+  }, [isOpen, loadThreads, markThreadAsRead, removeMessage, selectedThreadId, upsertMessage, view]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -457,8 +515,14 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     setView('chat');
 
     const threadMessages = sortMessages(await supabaseDbService.getChatMessages(row.thread.id));
-    setMessages(threadMessages);
+    const readAt = new Date().toISOString();
+    const nextMessages = threadMessages.map((message) =>
+      message.sender_type === 'user' && !message.read ? { ...message, read: true, read_at: readAt } : message
+    );
+
+    setMessages(nextMessages);
     setInput('');
+    applyThreadReadState(row.thread.id, readAt);
 
     await supabaseDbService.markThreadReadByAdmin(row.thread.id);
     await loadThreads(row.thread.id);
@@ -539,32 +603,25 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         initial={{ y: '100%', x: 0 }}
         animate={{ y: 0, x: 0 }}
         exit={{ y: '100%', x: 0 }}
-        className="relative w-full sm:w-[500px] h-screen sm:h-[90vh] sm:rounded-3xl bg-white flex flex-col shadow-2xl overflow-hidden"
+        className="relative flex h-screen w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[90vh] sm:w-[500px] sm:rounded-3xl"
       >
-        <div className="pointer-events-none absolute inset-0">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage:
-                "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')",
-              filter: 'brightness(0.82) saturate(0.82)',
-            }}
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(247,250,249,0.82),rgba(255,255,255,0.92))]" />
-        </div>
-
-        <motion.div className="sticky top-0 z-10 bg-white/72 border-b border-border px-4 py-4 flex items-center justify-between sm:rounded-t-3xl">
+        <motion.div
+          className="sticky top-0 z-10 flex items-center justify-between border-b border-white/18 px-4 py-4 text-white sm:rounded-t-3xl"
+          style={{
+            background: CHAT_BAR_GRADIENT,
+            boxShadow: '0 12px 28px rgba(0, 72, 54, 0.2)',
+          }}
+        >
           <div className="flex items-center gap-3">
             {view === 'chat' && (
               <motion.button
                 onClick={() => setView('list')}
                 whileHover={{ scale: 1.1, rotate: -10 }}
                 whileTap={{ scale: 0.95 }}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-md hover:shadow-lg"
-                style={{ backgroundColor: '#FFE5E5' }}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/18 bg-white/12 text-white transition-colors shadow-sm hover:bg-white/18 hover:shadow-md"
                 title="Back"
               >
-                <ArrowLeft className="w-5 h-5" style={{ color: '#FF6B6B' }} />
+                <ArrowLeft className="w-5 h-5" />
               </motion.button>
             )}
             <div>
@@ -576,7 +633,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                     transition={selectedUserIsOnline ? { duration: 1.5, repeat: Infinity } : undefined}
                     className={`w-2 h-2 rounded-full ${selectedUserIsOnline ? 'bg-green-500' : 'bg-slate-300'}`}
                   />
-                  <span className="text-xs text-muted-foreground">{selectedPresence}</span>
+                  <span className="text-xs text-white/82">{selectedPresence}</span>
                 </div>
               )}
             </div>
@@ -585,14 +642,14 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
             onClick={onClose}
             whileHover={{ scale: 1.1, rotate: 90 }}
             whileTap={{ scale: 0.95 }}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/18 bg-white/12 text-white/80 transition-colors hover:bg-white/18 hover:text-white"
           >
             <X className="w-5 h-5" />
           </motion.button>
         </motion.div>
 
         {view === 'list' ? (
-          <div className="relative flex-1 flex flex-col overflow-hidden">
+          <div className="relative flex flex-1 flex-col overflow-hidden bg-white">
             <div className="px-4 py-3 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -667,12 +724,23 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
             </div>
           </div>
         ) : (
-          <div className="relative flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <div className="relative flex flex-1 flex-col overflow-hidden bg-white">
+            <div className="relative flex-1 overflow-hidden">
+              <div className="pointer-events-none absolute inset-0">
+                <div
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url('${CHAT_BACKGROUND_IMAGE}')`,
+                  }}
+                />
+                <div className="absolute inset-0" style={{ background: 'rgba(0, 0, 0, 0.75)' }} />
+              </div>
+
+              <div className="relative z-10 h-full overflow-y-auto px-4 py-4 space-y-4">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <div className="w-16 h-16 rounded-full bg-[#e6f9f4] flex items-center justify-center mb-3">
-                    <User className="w-8 h-8 text-[#00b388]" />
+                <div className="flex h-full flex-col items-center justify-center text-slate-200">
+                  <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+                    <User className="h-8 w-8 text-white" />
                   </div>
                   <p className="text-sm">Start a conversation with {selectedProfileName}</p>
                 </div>
@@ -691,12 +759,15 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
 
                   return msg.sender_type === 'user' ? (
                     <div key={msg.id} className="flex justify-start">
-                      <Card className="max-w-[80%] p-4 rounded-xl bg-[#f3f4f6]">
+                      <Card
+                        className="max-w-[80%] rounded-2xl border p-4 shadow-lg"
+                        style={GLASS_GREEN_BUBBLE}
+                      >
                         <div className="flex items-start gap-2 mb-2">
-                          <div className="w-6 h-6 rounded-full bg-[#00b388] flex items-center justify-center">
-                            <User className="w-3 h-3 text-white" />
+                          <div className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center">
+                            <User className="w-3 h-3 text-black" />
                           </div>
-                          <span className="text-xs font-semibold">Customer</span>
+                          <span className="text-xs font-semibold text-black">Customer</span>
                         </div>
                         {msg.attachment_url ? (
                           <div className="space-y-2">
@@ -721,20 +792,23 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                               </audio>
                             )}
                             {!isImage && !isVideo && !isAudio && (
-                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline">
+                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-black">
                                 {msg.message}
                               </a>
                             )}
                           </div>
                         ) : (
-                          <div className="text-sm break-words">{msg.message}</div>
+                          <div className="text-sm break-words text-black">{msg.message}</div>
                         )}
-                        <div className="text-xs text-muted-foreground mt-2">{timestamp}</div>
+                        <div className="mt-2 text-xs text-black/70">{timestamp}</div>
                       </Card>
                     </div>
                   ) : (
                     <div key={msg.id} className="flex justify-end">
-                      <Card className="max-w-[80%] p-4 rounded-xl bg-[#00b388] text-white">
+                      <Card
+                        className="max-w-[80%] rounded-2xl border p-4 text-white shadow-lg"
+                        style={GLASS_DARK_BUBBLE}
+                      >
                         <div className="mb-3 flex items-center justify-end gap-1">
                           {!msg.attachment_url && !isEditingThisMessage && (
                             <button
@@ -834,9 +908,16 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                 })
               )}
               <div ref={messagesEndRef} />
+              </div>
             </div>
 
-            <div className="sticky bottom-0 bg-white/78 border-t border-border px-4 py-4 shadow-lg sm:rounded-b-3xl">
+            <div
+              className="sticky bottom-0 border-t border-white/18 px-4 py-4 shadow-lg sm:rounded-b-3xl"
+              style={{
+                background: CHAT_BAR_GRADIENT,
+                boxShadow: '0 -12px 28px rgba(0, 72, 54, 0.22)',
+              }}
+            >
               <div className="flex items-end gap-2">
                 <input
                   ref={fileInputRef}
@@ -849,13 +930,14 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/18 bg-white/12 text-white/85 transition-colors hover:bg-white/18 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ boxShadow: CHAT_ACTION_SHADOW }}
                   title="Upload file"
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  {input.trim().length > 0 && <div className="text-xs text-muted-foreground mb-1">User is typing...</div>}
+                  {input.trim().length > 0 && <div className="mb-1 text-xs text-white/82">User is typing...</div>}
                   <textarea
                     ref={textareaRef}
                     value={input}
@@ -869,8 +951,8 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                     placeholder="Type your message..."
                     rows={1}
                     maxLength={1000}
-                    className="w-full min-h-[40px] max-h-[150px] rounded-xl px-3 py-2 text-sm outline-none border resize-none bg-white/5 backdrop-blur-md border-white/10 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400/60"
-                    style={{ resize: 'none' }}
+                    className="w-full min-h-[40px] max-h-[150px] resize-none rounded-xl border border-white/18 bg-white/94 px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400/60"
+                    style={{ resize: 'none', boxShadow: CHAT_INPUT_SHADOW }}
                   />
                 </div>
                 <Button
@@ -891,7 +973,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       </motion.div>
       {imagePreview && (
         <div
-          className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[70] bg-black/85 flex items-center justify-center p-4"
           onClick={() => setImagePreview(null)}
         >
           <button

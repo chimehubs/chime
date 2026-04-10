@@ -7,6 +7,7 @@ const BRAND_RED = '#ef4444';
 const CARD_BG = 'rgba(15, 23, 42, 0.74)';
 const PAGE_BG = '#050816';
 const DEFAULT_TIMEOUT_MS = 5000;
+const SUPPORT_INBOX_EMAIL = process.env.SUPPORT_INBOX_EMAIL || 'chimhubs@gmail.com';
 
 function json(statusCode, body, origin = '*') {
   return {
@@ -15,7 +16,7 @@ function json(statusCode, body, origin = '*') {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
       'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Headers': 'Content-Type, x-webhook-secret',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-webhook-secret',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
     },
     body: JSON.stringify(body),
@@ -29,6 +30,10 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatHtmlText(value) {
+  return escapeHtml(value).replace(/\n/g, '<br />');
 }
 
 function normalizeMetadata(metadata) {
@@ -86,6 +91,7 @@ function renderEmail({
   eyebrow,
   title,
   subtitle,
+  subtitleHtml,
   accentColor,
   amount,
   amountLabel,
@@ -137,7 +143,7 @@ function renderEmail({
                       ${escapeHtml(title)}
                     </h1>
                     <p style="margin: 0; color: rgba(226, 232, 240, 0.84); font-size: 15px; line-height: 1.7;">
-                      ${escapeHtml(subtitle)}
+                      ${subtitleHtml || formatHtmlText(subtitle)}
                     </p>
                     ${
                       amount
@@ -240,6 +246,113 @@ async function fetchCard(adminClient, accountId) {
     .limit(1)
     .maybeSingle();
   return data || null;
+}
+
+async function buildDirectEmailAlert(adminClient, payload) {
+  const userId = String(payload?.userId || '').trim();
+  const subject = String(payload?.subject || '').trim();
+  const title = String(payload?.title || '').trim();
+  const message = String(payload?.message || '').trim();
+  const eyebrow = String(payload?.eyebrow || 'Account Update').trim();
+  const actionLabel = String(payload?.actionLabel || 'Account status update').trim();
+  const ctaPath = String(payload?.ctaPath || '/dashboard').trim();
+
+  if (!userId || !subject || !title || !message) {
+    throw new Error('Direct email payload is missing required fields.');
+  }
+
+  const profile = await fetchProfile(adminClient, userId);
+  const email = await getUserEmail(adminClient, userId);
+  if (!email) {
+    throw new Error('Unable to resolve the target user email address.');
+  }
+
+  const siteUrl = getSiteUrl();
+  const ctaUrl = siteUrl && ctaPath ? `${siteUrl}${ctaPath.startsWith('/') ? ctaPath : `/${ctaPath}`}` : '';
+  const displayName = profile?.first_name || profile?.name || 'Customer';
+  const rows = [
+    { label: 'Customer', value: displayName },
+    { label: 'Reference', value: actionLabel },
+    { label: 'Sent On', value: formatDate(new Date().toISOString()) },
+  ];
+
+  if (profile?.email) {
+    rows.push({ label: 'Email Address', value: profile.email });
+  }
+
+  return {
+    email,
+    subject,
+    replyTo: SUPPORT_INBOX_EMAIL,
+    html: renderEmail({
+      preheader: message,
+      eyebrow,
+      title,
+      subtitle: message,
+      subtitleHtml: formatHtmlText(message),
+      accentColor: BRAND_GREEN,
+      amount: null,
+      rows,
+      ctaLabel: ctaUrl ? 'Open Dashboard' : null,
+      ctaUrl: ctaUrl || null,
+    }),
+    text: renderTextVersion({
+      eyebrow,
+      title,
+      subtitle: message,
+      rows,
+      ctaUrl: ctaUrl || null,
+    }),
+  };
+}
+
+async function buildUserSupportInboxChatAlert(adminClient, message) {
+  if (!message?.id || message.sender_type !== 'user') {
+    throw new Error('Support inbox alerts require a user-sent chat message.');
+  }
+
+  const profile = await fetchProfile(adminClient, message.user_id);
+  const displayName = profile?.first_name || profile?.name || 'Customer';
+  const excerpt = String(message.message || '').trim().slice(0, 220) || 'A user sent a new customer care message.';
+  const siteUrl = getSiteUrl();
+  const adminUrl = siteUrl ? `${siteUrl}/admin` : '';
+  const rows = [
+    { label: 'Customer', value: displayName },
+    { label: 'Customer Email', value: profile?.email || 'Not available' },
+    { label: 'Thread ID', value: message.thread_id || 'Open customer care' },
+    { label: 'Received On', value: formatDate(message.created_at) },
+    { label: 'Message Preview', value: excerpt },
+  ];
+
+  if (message.attachment_url) {
+    rows.push({ label: 'Attachment', value: 'The user included a file attachment.' });
+  }
+
+  const subtitle = `${displayName} has sent a new customer care message. Open the admin dashboard to continue the conversation.`;
+
+  return {
+    email: SUPPORT_INBOX_EMAIL,
+    subject: `${BRAND_NAME}: New customer care message from ${displayName}`,
+    replyTo: profile?.email || undefined,
+    html: renderEmail({
+      preheader: excerpt,
+      eyebrow: 'Customer Care Inbox',
+      title: 'A user needs support attention',
+      subtitle,
+      accentColor: BRAND_GREEN,
+      amount: null,
+      rows,
+      ctaLabel: adminUrl ? 'Open Admin Dashboard' : null,
+      ctaUrl: adminUrl || null,
+    }),
+    text: renderTextVersion({
+      eyebrow: 'Customer Care Inbox',
+      title: 'A user needs support attention',
+      subtitle,
+      rows,
+      ctaUrl: adminUrl || null,
+    }),
+  };
 }
 
 async function buildTransactionAlert(adminClient, payload) {
@@ -504,6 +617,21 @@ async function resolveEmailPayload(adminClient, payload) {
   return null;
 }
 
+async function sendResolvedMail(mail) {
+  const transporter = getTransporter();
+  const fromAddress = process.env.MAIL_FROM || `${BRAND_NAME} Alerts <${process.env.GMAIL_USER}>`;
+  const result = await transporter.sendMail({
+    from: fromAddress,
+    to: mail.email,
+    replyTo: mail.replyTo || process.env.GMAIL_USER || SUPPORT_INBOX_EMAIL,
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+  });
+
+  return result;
+}
+
 function getTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -531,7 +659,7 @@ export async function handler(event) {
       statusCode: 204,
       headers: {
         'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Headers': 'Content-Type, x-webhook-secret',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-webhook-secret',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
       body: '',
@@ -542,12 +670,6 @@ export async function handler(event) {
     return json(405, { error: 'Method not allowed.' }, origin);
   }
 
-  const expectedSecret = process.env.NOTIFICATION_WEBHOOK_SECRET;
-  const providedSecret = event.headers['x-webhook-secret'] || event.headers['X-Webhook-Secret'];
-  if (expectedSecret && providedSecret !== expectedSecret) {
-    return json(401, { error: 'Invalid webhook secret.' }, origin);
-  }
-
   let payload;
   try {
     payload = JSON.parse(event.body || '{}');
@@ -555,11 +677,11 @@ export async function handler(event) {
     return json(400, { error: 'Invalid JSON payload.' }, origin);
   }
 
-  if (!payload?.table || !payload?.type || !payload?.record) {
-    return json(400, { error: 'Webhook payload is missing required fields.' }, origin);
-  }
-
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     return json(500, { error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.' }, origin);
@@ -569,22 +691,137 @@ export async function handler(event) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const authHeader = event.headers.authorization || event.headers.Authorization;
+  const getRequesterContext = async () => {
+    if (!supabaseAnonKey) {
+      return {
+        errorResponse: json(500, { error: 'Missing SUPABASE_ANON_KEY for authenticated requests.' }, origin),
+      };
+    }
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return {
+        errorResponse: json(401, { error: 'Missing session token.' }, origin),
+      };
+    }
+
+    const requesterClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const {
+      data: { user: requester },
+      error: requesterError,
+    } = await requesterClient.auth.getUser();
+
+    if (requesterError || !requester) {
+      return {
+        errorResponse: json(401, { error: 'Unable to verify the authenticated session.' }, origin),
+      };
+    }
+
+    const { data: requesterProfile, error: requesterProfileError } = await adminClient
+      .from('profiles')
+      .select('id, role, email, first_name, name')
+      .eq('id', requester.id)
+      .maybeSingle();
+
+    if (requesterProfileError || !requesterProfile) {
+      return {
+        errorResponse: json(403, { error: 'Requester profile could not be verified.' }, origin),
+      };
+    }
+
+    return { requester, requesterProfile };
+  };
+
   try {
+    if (payload?.action === 'direct_email') {
+      const requesterContext = await getRequesterContext();
+      if (requesterContext.errorResponse) {
+        return requesterContext.errorResponse;
+      }
+
+      if (requesterContext.requesterProfile.role !== 'admin') {
+        return json(403, { error: 'Only admins can send direct customer emails.' }, origin);
+      }
+
+      const mail = await buildDirectEmailAlert(adminClient, payload);
+      const result = await sendResolvedMail(mail);
+
+      return json(
+        200,
+        {
+          success: true,
+          action: 'direct_email',
+          email: mail.email,
+          messageId: result.messageId,
+        },
+        origin,
+      );
+    }
+
+    if (payload?.action === 'user_chat_alert') {
+      const requesterContext = await getRequesterContext();
+      if (requesterContext.errorResponse) {
+        return requesterContext.errorResponse;
+      }
+
+      const messageId = String(payload?.messageId || '').trim();
+      if (!messageId) {
+        return json(400, { error: 'A chat message ID is required.' }, origin);
+      }
+
+      const { data: message, error: messageError } = await adminClient
+        .from('chat_messages')
+        .select('*')
+        .eq('id', messageId)
+        .maybeSingle();
+
+      if (messageError || !message) {
+        return json(404, { error: 'Chat message not found.' }, origin);
+      }
+
+      if (message.sender_type !== 'user') {
+        return json(400, { error: 'Only user chat messages can notify the support inbox.' }, origin);
+      }
+
+      if (message.user_id !== requesterContext.requester.id) {
+        return json(403, { error: 'You can only notify support for your own chat messages.' }, origin);
+      }
+
+      const mail = await buildUserSupportInboxChatAlert(adminClient, message);
+      const result = await sendResolvedMail(mail);
+
+      return json(
+        200,
+        {
+          success: true,
+          action: 'user_chat_alert',
+          email: mail.email,
+          messageId: result.messageId,
+        },
+        origin,
+      );
+    }
+
+    const expectedSecret = process.env.NOTIFICATION_WEBHOOK_SECRET;
+    const providedSecret = event.headers['x-webhook-secret'] || event.headers['X-Webhook-Secret'];
+    if (expectedSecret && providedSecret !== expectedSecret) {
+      return json(401, { error: 'Invalid webhook secret.' }, origin);
+    }
+
+    if (!payload?.table || !payload?.type || !payload?.record) {
+      return json(400, { error: 'Webhook payload is missing required fields.' }, origin);
+    }
+
     const mail = await resolveEmailPayload(adminClient, payload);
     if (!mail) {
       return json(202, { success: true, skipped: true, reason: 'No email required for this event.' }, origin);
     }
 
-    const transporter = getTransporter();
-    const fromAddress = process.env.MAIL_FROM || `${BRAND_NAME} Alerts <${process.env.GMAIL_USER}>`;
-    const result = await transporter.sendMail({
-      from: fromAddress,
-      to: mail.email,
-      replyTo: process.env.GMAIL_USER,
-      subject: mail.subject,
-      html: mail.html,
-      text: mail.text,
-    });
+    const result = await sendResolvedMail(mail);
 
     return json(
       200,

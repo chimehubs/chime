@@ -125,6 +125,13 @@ class SupabaseDbService {
     }
   }
 
+  private isMissingColumnError(error: unknown, table: string, column: string) {
+    if (!error || typeof error !== 'object') return false;
+    const err = error as { code?: string; message?: string };
+    if (err.code !== 'PGRST204' || typeof err.message !== 'string') return false;
+    return err.message.includes(`'${column}'`) && err.message.includes(`'${table}'`);
+  }
+
   async getProfile(userId: string): Promise<Profile | null> {
     const client = getClient();
     if (!client) return null;
@@ -565,6 +572,20 @@ class SupabaseDbService {
       .eq('sender_type', 'admin')
       .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
       .or('read.is.false,read.is.null');
+    if (error && this.isMissingColumnError(error, 'chat_messages', 'read_at')) {
+      const { error: retryError } = await client
+        .from('chat_messages')
+        .update({ read: true })
+        .eq('thread_id', threadId)
+        .eq('user_id', userId)
+        .eq('sender_type', 'admin')
+        .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
+        .or('read.is.false,read.is.null');
+      if (retryError) {
+        this.logError('markThreadRead.retryWithoutReadAt', retryError);
+      }
+      return;
+    }
     if (error) {
       this.logError('markThreadRead', error);
     }
@@ -581,6 +602,19 @@ class SupabaseDbService {
       .eq('sender_type', 'user')
       .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
       .or('read.is.false,read.is.null');
+    if (error && this.isMissingColumnError(error, 'chat_messages', 'read_at')) {
+      const { error: retryError } = await client
+        .from('chat_messages')
+        .update({ read: true })
+        .eq('thread_id', threadId)
+        .eq('sender_type', 'user')
+        .neq('message', ADMIN_CHAT_DELETED_SENTINEL)
+        .or('read.is.false,read.is.null');
+      if (retryError) {
+        this.logError('markThreadReadByAdmin.retryWithoutReadAt', retryError);
+      }
+      return;
+    }
     if (error) {
       this.logError('markThreadReadByAdmin', error);
     }
@@ -625,6 +659,20 @@ class SupabaseDbService {
       .eq('id', messageId)
       .select()
       .single();
+    if (error && Object.prototype.hasOwnProperty.call(updates, 'read_at') && this.isMissingColumnError(error, 'chat_messages', 'read_at')) {
+      const { read_at: _readAt, ...fallbackUpdates } = updates;
+      const { data: retryData, error: retryError } = await client
+        .from('chat_messages')
+        .update(fallbackUpdates)
+        .eq('id', messageId)
+        .select()
+        .single();
+      if (retryError) {
+        this.logError('updateChatMessage.retryWithoutReadAt', retryError);
+        return null;
+      }
+      return retryData as ChatMessage;
+    }
     if (error) {
       this.logError('updateChatMessage', error);
       return null;
@@ -721,6 +769,114 @@ class SupabaseDbService {
       return {
         success: false,
         error: 'Unable to reach the user deletion service.',
+      };
+    }
+  }
+
+  async sendAdminDirectEmail(payload: {
+    userId: string;
+    subject: string;
+    title: string;
+    message: string;
+    eyebrow?: string;
+    ctaPath?: string;
+    actionLabel?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const client = getClient();
+    if (!client) {
+      return { success: false, error: 'Supabase client is not available.' };
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await client.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      this.logError('sendAdminDirectEmail.getSession', sessionError);
+      return { success: false, error: 'Admin session is not available.' };
+    }
+
+    try {
+      const apiBase = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const endpoint = apiBase ? `${apiBase}/api/send-banking-alert` : '/api/send-banking-alert';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'direct_email',
+          ...payload,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result?.error || 'Email delivery failed.',
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.logError('sendAdminDirectEmail.fetch', error);
+      return {
+        success: false,
+        error: 'Unable to reach the email delivery service.',
+      };
+    }
+  }
+
+  async sendUserChatSupportAlert(messageId: string): Promise<{ success: boolean; error?: string }> {
+    const client = getClient();
+    if (!client) {
+      return { success: false, error: 'Supabase client is not available.' };
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await client.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      this.logError('sendUserChatSupportAlert.getSession', sessionError);
+      return { success: false, error: 'User session is not available.' };
+    }
+
+    try {
+      const apiBase = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const endpoint = apiBase ? `${apiBase}/api/send-banking-alert` : '/api/send-banking-alert';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'user_chat_alert',
+          messageId,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result?.error || 'Support inbox alert failed.',
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.logError('sendUserChatSupportAlert.fetch', error);
+      return {
+        success: false,
+        error: 'Unable to reach the support inbox notification service.',
       };
     }
   }

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Users, Receipt, ArrowDownRight, MessageSquare, Settings } from 'lucide-react';
 import { Card } from '../ui/card';
@@ -26,7 +26,6 @@ function getViewedAtValue(key: string) {
 }
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
   const [showChat, setShowChat] = useState(false);
   const [notificationCounts, setNotificationCounts] = useState({
     chat: 0,
@@ -62,12 +61,21 @@ export default function AdminDashboard() {
       }).length;
 
       if (!isMounted) return;
-      setNotificationCounts({
+      const nextCounts = {
         chat: unreadChat,
         users: newUsers,
         transactions: pendingTransactions,
         deposits: pendingDeposits,
-      });
+      };
+
+      setNotificationCounts((prev) =>
+        prev.chat === nextCounts.chat &&
+        prev.users === nextCounts.users &&
+        prev.transactions === nextCounts.transactions &&
+        prev.deposits === nextCounts.deposits
+          ? prev
+          : nextCounts
+      );
     };
 
     updateCounts();
@@ -98,36 +106,33 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const handleOpenAdminUsers = () => {
+  const markAdminUsersViewed = () => {
     window.localStorage.setItem(ADMIN_USERS_VIEWED_AT_KEY, new Date().toISOString());
     setNotificationCounts((prev) => ({ ...prev, users: 0 }));
-    navigate('/admin/users');
   };
 
-  const handleOpenAdminTransactions = () => {
+  const markAdminTransactionsViewed = () => {
     const now = new Date().toISOString();
     window.localStorage.setItem(ADMIN_TRANSACTIONS_VIEWED_AT_KEY, now);
     window.localStorage.setItem(ADMIN_DEPOSITS_VIEWED_AT_KEY, now);
     setNotificationCounts((prev) => ({ ...prev, transactions: 0, deposits: 0 }));
-    navigate('/admin/transactions');
   };
 
-  const handleOpenAdminDeposits = () => {
+  const markAdminDepositsViewed = () => {
     window.localStorage.setItem(ADMIN_DEPOSITS_VIEWED_AT_KEY, new Date().toISOString());
     setNotificationCounts((prev) => ({ ...prev, deposits: 0 }));
-    navigate('/admin/deposits');
   };
 
-  const handleOpenAdminSettings = () => {
-    navigate('/admin/settings');
-  };
+  const handleUnreadCountChange = useCallback((count: number) => {
+    setNotificationCounts((prev) => (prev.chat === count ? prev : { ...prev, chat: count }));
+  }, []);
 
   const adminPages = [
     { icon: MessageSquare, label: 'Customer Care', path: null, color: '#8b5cf6', bgColor: '#ede9fe', action: () => setShowChat(true), badge: notificationCounts.chat },
-    { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', action: handleOpenAdminUsers, badge: notificationCounts.users },
-    { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', action: handleOpenAdminTransactions, badge: notificationCounts.transactions },
-    { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', action: handleOpenAdminDeposits, badge: notificationCounts.deposits },
-    { icon: Settings, label: 'Settings', path: '/admin/settings', color: '#06b6d4', bgColor: '#cffafe', action: handleOpenAdminSettings, badge: 0 },
+    { icon: Users, label: 'User Management', path: '/admin/users', color: '#6366f1', bgColor: '#eef2ff', action: markAdminUsersViewed, badge: notificationCounts.users },
+    { icon: Receipt, label: 'Transactions', path: '/admin/transactions', color: '#f59e0b', bgColor: '#fef3c7', action: markAdminTransactionsViewed, badge: notificationCounts.transactions },
+    { icon: ArrowDownRight, label: 'Deposits', path: '/admin/deposits', color: '#10b981', bgColor: '#d1fae5', action: markAdminDepositsViewed, badge: notificationCounts.deposits },
+    { icon: Settings, label: 'Settings', path: '/admin/settings', color: '#06b6d4', bgColor: '#cffafe', action: undefined, badge: 0 },
   ];
 
   return (
@@ -142,46 +147,87 @@ export default function AdminDashboard() {
           <h3 className="text-sm mb-4 text-muted-foreground font-medium">Admin Dashboard Pages</h3>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {adminPages.map((page, index) => (
-              <motion.button
+              <motion.div
                 key={page.label}
-                onClick={page.action}
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
-                className="relative flex flex-col items-center gap-3 p-5 rounded-xl bg-card border border-border shadow-md hover:border-[#00b388]/20 hover:shadow-lg transition-all"
+                className="relative"
               >
-                {/* Notification Badge */}
-                {page.badge > 0 && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                    className="absolute -top-2 -right-2 bg-gradient-to-br from-red-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg min-w-[24px] text-center"
+                {page.path ? (
+                  <Link
+                    to={page.path}
+                    onClick={page.action}
+                    className="relative flex flex-col items-center gap-3 p-5 rounded-xl bg-card border border-border shadow-md hover:border-[#00b388]/20 hover:shadow-lg transition-all"
                   >
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      {page.badge > 99 ? '99+' : page.badge}
-                    </motion.div>
-                  </motion.div>
-                )}
+                    {page.badge > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                        className="absolute -top-2 -right-2 bg-gradient-to-br from-red-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg min-w-[24px] text-center"
+                      >
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          {page.badge > 99 ? '99+' : page.badge}
+                        </motion.div>
+                      </motion.div>
+                    )}
 
-                <motion.div
-                  whileHover={{ rotate: 5, scale: 1.1 }}
-                  animate={{ y: [0, -3, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
-                  style={{ backgroundColor: page.bgColor }}
-                  className="w-14 h-14 rounded-full flex items-center justify-center"
-                >
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
-                    <page.icon className="w-6 h-6" style={{ color: page.color }} />
-                  </motion.div>
-                </motion.div>
-                <span className="text-sm font-medium text-center leading-tight">{page.label}</span>
-              </motion.button>
+                    <motion.div
+                      whileHover={{ rotate: 5, scale: 1.1 }}
+                      animate={{ y: [0, -3, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                      style={{ backgroundColor: page.bgColor }}
+                      className="w-14 h-14 rounded-full flex items-center justify-center"
+                    >
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
+                        <page.icon className="w-6 h-6" style={{ color: page.color }} />
+                      </motion.div>
+                    </motion.div>
+                    <span className="text-sm font-medium text-center leading-tight">{page.label}</span>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={page.action}
+                    className="relative flex w-full flex-col items-center gap-3 p-5 rounded-xl bg-card border border-border shadow-md hover:border-[#00b388]/20 hover:shadow-lg transition-all"
+                  >
+                    {page.badge > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                        className="absolute -top-2 -right-2 bg-gradient-to-br from-red-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg min-w-[24px] text-center"
+                      >
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          {page.badge > 99 ? '99+' : page.badge}
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    <motion.div
+                      whileHover={{ rotate: 5, scale: 1.1 }}
+                      animate={{ y: [0, -3, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                      style={{ backgroundColor: page.bgColor }}
+                      className="w-14 h-14 rounded-full flex items-center justify-center"
+                    >
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
+                        <page.icon className="w-6 h-6" style={{ color: page.color }} />
+                      </motion.div>
+                    </motion.div>
+                    <span className="text-sm font-medium text-center leading-tight">{page.label}</span>
+                  </button>
+                )}
+              </motion.div>
             ))}
           </div>
         </motion.div>
@@ -209,9 +255,7 @@ export default function AdminDashboard() {
       <AdminChat
         isOpen={showChat}
         onClose={() => setShowChat(false)}
-        onUnreadCountChange={(count) => {
-          setNotificationCounts((prev) => ({ ...prev, chat: count }));
-        }}
+        onUnreadCountChange={handleUnreadCountChange}
       />
     </AdminLayout>
   );

@@ -15,7 +15,8 @@ import {
   Mail,
   Calendar,
   Wallet,
-  Trash2
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
@@ -24,6 +25,46 @@ import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { clearFreezeState, DEFAULT_TRANSACTION_LIMIT, DEFAULT_WITHDRAWAL_LIMIT, getAccountControlLimits, getActiveFreezeState } from '../user/userAccountState';
 
+type ReverseLiquidationEmailMode = 'custom' | 'apology' | 'warning';
+type ReverseLiquidationEmailContent = {
+  subject: string;
+  title: string;
+  eyebrow: string;
+  message: string;
+};
+
+const DEFAULT_REVERSE_LIQUIDATION_MESSAGES: Record<Exclude<ReverseLiquidationEmailMode, 'custom'>, ReverseLiquidationEmailContent> = {
+  apology: {
+    subject: 'Chimehubs: Your account has been restored',
+    title: 'Your account has been restored',
+    eyebrow: 'Account Restored',
+    message:
+      'We sincerely apologize for the recent liquidation placed on your account. This action was caused by an internal banking system glitch and was not intended for your profile. The issue has now been permanently resolved, your account has been fully restored, and you can continue using your banking services normally. Thank you for your patience and understanding.',
+  },
+  warning: {
+    subject: 'Chimehubs: Account restored with final warning',
+    title: 'Your account has been restored',
+    eyebrow: 'Final Warning',
+    message:
+      "Your account liquidation has been reversed and your access has been restored. This serves as a final warning that if you fail to comply with the bank's policies, verification requirements, or account usage rules, your account may be permanently frozen without further exceptions. Please ensure full compliance going forward.",
+  },
+};
+
+function getReverseLiquidationEmailContent(
+  mode: ReverseLiquidationEmailMode,
+  customMessage: string,
+): ReverseLiquidationEmailContent {
+  if (mode === 'custom') {
+    return {
+      subject: 'Chimehubs: Important account restoration update',
+      title: 'Important account restoration update',
+      eyebrow: 'Admin Update',
+      message: customMessage.trim(),
+    };
+  }
+
+  return DEFAULT_REVERSE_LIQUIDATION_MESSAGES[mode];
+}
 
 export default function AdminUsers() {
   const { user: adminUser } = useAuthContext();
@@ -89,6 +130,10 @@ export default function AdminUsers() {
   const [userActionSuccess, setUserActionSuccess] = useState('');
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isLiquidatingAccount, setIsLiquidatingAccount] = useState(false);
+  const [showReverseLiquidationModal, setShowReverseLiquidationModal] = useState(false);
+  const [reverseLiquidationMode, setReverseLiquidationMode] = useState<ReverseLiquidationEmailMode>('apology');
+  const [reverseLiquidationCustomMessage, setReverseLiquidationCustomMessage] = useState('');
+  const [isReversingLiquidation, setIsReversingLiquidation] = useState(false);
   const [transactionLimitInput, setTransactionLimitInput] = useState(String(DEFAULT_TRANSACTION_LIMIT));
   const [withdrawalLimitInput, setWithdrawalLimitInput] = useState(String(DEFAULT_WITHDRAWAL_LIMIT));
   const [freezeNote, setFreezeNote] = useState('');
@@ -685,6 +730,137 @@ export default function AdminUsers() {
     }
   };
 
+  const openReverseLiquidationModal = () => {
+    if (!selectedUser) return;
+
+    setUserActionError('');
+    setUserActionSuccess('');
+
+    if (selectedUser.status !== 'liquidated') {
+      setUserActionError('Only liquidated accounts can be reversed.');
+      return;
+    }
+
+    setReverseLiquidationMode('apology');
+    setReverseLiquidationCustomMessage('');
+    setShowReverseLiquidationModal(true);
+  };
+
+  const handleReverseLiquidationAccount = async () => {
+    if (!selectedUser?.profile?.id || !selectedUser.account?.id) return;
+
+    const emailContent = getReverseLiquidationEmailContent(
+      reverseLiquidationMode,
+      reverseLiquidationCustomMessage,
+    );
+
+    if (!emailContent.message.trim()) {
+      setUserActionError('Enter the exact email message to send to the user.');
+      return;
+    }
+
+    if (selectedUser.status !== 'liquidated') {
+      setUserActionError('Only liquidated accounts can be reversed.');
+      return;
+    }
+
+    setIsReversingLiquidation(true);
+    setUserActionError('');
+    setUserActionSuccess('');
+
+    try {
+      const reversedAt = new Date().toISOString();
+      const existingLifecycle =
+        selectedUser.profile.preferences?.accountLifecycle &&
+        typeof selectedUser.profile.preferences.accountLifecycle === 'object' &&
+        !Array.isArray(selectedUser.profile.preferences.accountLifecycle)
+          ? (selectedUser.profile.preferences.accountLifecycle as Record<string, unknown>)
+          : {};
+
+      const nextPreferences = {
+        ...clearFreezeState(selectedUser.profile.preferences || {}),
+        accountLifecycle: {
+          ...existingLifecycle,
+          isLiquidated: false,
+          reversedAt,
+          reversedBy: adminUser?.id || null,
+          reversalMessageType: reverseLiquidationMode,
+          note: emailContent.message,
+        },
+      };
+
+      const updatedProfile = await supabaseDbService.updateProfile(selectedUser.profile.id, {
+        status: 'ACTIVE' as any,
+        preferences: nextPreferences,
+      });
+
+      if (!updatedProfile) {
+        setUserActionError('Failed to restore the user profile.');
+        return;
+      }
+
+      const updatedAccount = await supabaseDbService.updateAccount(selectedUser.account.id, {
+        status: 'ACTIVE',
+      });
+
+      if (!updatedAccount) {
+        setUserActionError('Failed to reopen the banking account.');
+        return;
+      }
+
+      const cards = await supabaseDbService.getVirtualCards(selectedUser.profile.id);
+      const hasLiveCard = cards.some((card) => card.status === 'ACTIVE' || card.status === 'FROZEN');
+      if (!hasLiveCard) {
+        const cancelledCard = cards.find((card) => card.status === 'CANCELLED');
+        if (cancelledCard) {
+          await supabaseDbService.updateVirtualCard(cancelledCard.id, { status: 'ACTIVE' });
+        }
+      }
+
+      await Promise.all([
+        supabaseDbService.createActivity({
+          user_id: selectedUser.profile.id,
+          type: 'profile',
+          description: 'Account liquidation reversed by admin. Banking access restored.',
+          amount: selectedUser.balanceValue || 0,
+        }),
+        supabaseDbService.createNotification({
+          user_id: selectedUser.profile.id,
+          title: emailContent.title,
+          message: emailContent.message,
+          type: 'info',
+          read: false,
+          path: '/dashboard',
+        }),
+      ]);
+
+      const emailResult = await supabaseDbService.sendAdminDirectEmail({
+        userId: selectedUser.profile.id,
+        subject: emailContent.subject,
+        title: emailContent.title,
+        eyebrow: emailContent.eyebrow,
+        message: emailContent.message,
+        ctaPath: '/dashboard',
+        actionLabel: 'Account liquidation reversed',
+      });
+
+      syncUpdatedProfile(updatedProfile);
+      syncUpdatedAccount(updatedAccount);
+      setShowReverseLiquidationModal(false);
+      setReverseLiquidationCustomMessage('');
+
+      if (!emailResult.success) {
+        setUserActionError(emailResult.error || 'Account restored, but the email could not be delivered.');
+        setUserActionSuccess(`${selectedUser.name}'s liquidation has been reversed and the account is active again.`);
+        return;
+      }
+
+      setUserActionSuccess(`${selectedUser.name}'s liquidation has been reversed and the selected email has been sent.`);
+    } finally {
+      setIsReversingLiquidation(false);
+    }
+  };
+
   const handleFundUser = async () => {
     setFundError('');
     setFundSuccess('');
@@ -882,6 +1058,10 @@ export default function AdminUsers() {
   };
 
   const isSelectedUserLiquidated = selectedUser?.status === 'liquidated';
+  const reverseLiquidationEmailPreview = getReverseLiquidationEmailContent(
+    reverseLiquidationMode,
+    reverseLiquidationCustomMessage,
+  );
 
   return (
     <AdminLayout
@@ -1189,6 +1369,19 @@ export default function AdminUsers() {
                             ? 'Account Liquidated'
                             : 'Liquidate Account'}
                       </Button>
+                      <Button
+                        onClick={openReverseLiquidationModal}
+                        disabled={isReversingLiquidation || !isSelectedUserLiquidated || !selectedUser.account}
+                        variant="outline"
+                        className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        {isReversingLiquidation
+                          ? 'Reversing Liquidation...'
+                          : isSelectedUserLiquidated
+                            ? 'Reverse Liquidation'
+                            : 'Reverse Liquidation'}
+                      </Button>
                     </div>
                   </div>
 
@@ -1398,6 +1591,15 @@ export default function AdminUsers() {
                       ? 'Account Liquidated'
                       : 'Liquidate Account'}
                 </Button>
+                <Button
+                  onClick={openReverseLiquidationModal}
+                  disabled={isReversingLiquidation || !isSelectedUserLiquidated || !selectedUser.account}
+                  variant="outline"
+                  className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <RotateCcw className="w-5 h-5 mr-2" />
+                  {isReversingLiquidation ? 'Reversing Liquidation...' : 'Reverse Liquidation'}
+                </Button>
               </div>
             </div>
 
@@ -1420,6 +1622,166 @@ export default function AdminUsers() {
               </Button>
             </div>
           </div>
+        </motion.div>
+      )}
+      {showReverseLiquidationModal && selectedUser && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-6"
+          onClick={() => setShowReverseLiquidationModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            onClick={(event) => event.stopPropagation()}
+            className="flex h-[92dvh] min-h-0 w-full flex-col overflow-hidden rounded-t-[28px] bg-card shadow-2xl sm:h-auto sm:max-h-[88vh] sm:max-w-5xl sm:rounded-[28px]"
+          >
+            <div className="border-b border-border bg-background/95 px-4 pb-4 pt-3 backdrop-blur sm:px-6 sm:py-5">
+              <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 sm:hidden" />
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0a7a5a]">Account Recovery</p>
+                  <h3 className="mt-2 text-lg font-semibold sm:text-2xl">Reverse Liquidation</h3>
+                  <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                    Restore {selectedUser.name}'s account and choose the email that will be sent immediately after the account is reactivated.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReverseLiquidationModal(false)}
+                  title="Close reverse liquidation dialog"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+              <div className="flex min-h-full flex-col gap-6 sm:grid sm:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] sm:items-start">
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-[#d6ebe4] bg-[linear-gradient(135deg,rgba(236,251,245,0.92),rgba(255,255,255,0.96))] p-4 sm:hidden">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0a7a5a]">Selected User</p>
+                    <p className="mt-2 text-base font-semibold text-foreground">{selectedUser.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{selectedUser.email}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-foreground">Choose Email Type</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Mobile uses a stacked sheet for easier thumb reach. Desktop shows a wider review panel alongside the options.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setReverseLiquidationMode('custom')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-colors ${
+                          reverseLiquidationMode === 'custom'
+                            ? 'border-[#00b388] bg-[#ecfbf5]'
+                            : 'border-border hover:border-[#00b388]/30 hover:bg-muted/30'
+                        }`}
+                      >
+                        <p className="font-semibold text-foreground">Custom Email</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Type the exact message that should be emailed to the user.</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReverseLiquidationMode('apology')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-colors ${
+                          reverseLiquidationMode === 'apology'
+                            ? 'border-[#00b388] bg-[#ecfbf5]'
+                            : 'border-border hover:border-[#00b388]/30 hover:bg-muted/30'
+                        }`}
+                      >
+                        <p className="font-semibold text-foreground">Default Message 1</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Apology message explaining the liquidation was caused by a system glitch and has been permanently resolved.</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReverseLiquidationMode('warning')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-colors ${
+                          reverseLiquidationMode === 'warning'
+                            ? 'border-[#00b388] bg-[#ecfbf5]'
+                            : 'border-border hover:border-[#00b388]/30 hover:bg-muted/30'
+                        }`}
+                      >
+                        <p className="font-semibold text-foreground">Default Message 2</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Final warning message stating the account can be permanently frozen for future policy defaults.</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {reverseLiquidationMode === 'custom' && (
+                    <div className="rounded-2xl border border-border bg-background/80 p-4 sm:p-5">
+                      <label className="mb-2 block text-sm font-semibold text-foreground">Custom Email Message</label>
+                      <textarea
+                        value={reverseLiquidationCustomMessage}
+                        onChange={(event) => setReverseLiquidationCustomMessage(event.target.value)}
+                        rows={8}
+                        placeholder="Type the exact email message that should be sent to the user."
+                        className="min-h-[180px] w-full rounded-xl border border-border px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00b388]/30"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 sm:sticky sm:top-0">
+                  <div className="hidden rounded-2xl border border-[#d6ebe4] bg-[linear-gradient(135deg,rgba(236,251,245,0.92),rgba(255,255,255,0.96))] p-5 sm:block">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0a7a5a]">Selected User</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{selectedUser.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{selectedUser.email}</p>
+                    <div className="mt-4 rounded-xl border border-[#cfe5dd] bg-white/80 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Mode</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {reverseLiquidationMode === 'custom'
+                          ? 'Custom Email'
+                          : reverseLiquidationMode === 'apology'
+                            ? 'Default Message 1'
+                            : 'Default Message 2'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#d6ebe4] bg-[linear-gradient(135deg,rgba(236,251,245,0.92),rgba(255,255,255,0.96))] p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0a7a5a]">Email Preview</p>
+                    <p className="mt-3 text-sm font-semibold text-foreground">Subject: {reverseLiquidationEmailPreview.subject}</p>
+                    <div className="mt-4 max-h-[38dvh] overflow-y-auto rounded-xl border border-[#cfe5dd] bg-white/80 px-4 py-4 sm:max-h-[42vh]">
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                        {reverseLiquidationEmailPreview.message || 'Enter a custom message to preview the email.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 sm:py-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowReverseLiquidationModal(false)}
+                  className="sm:min-w-[120px]"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleReverseLiquidationAccount}
+                  disabled={isReversingLiquidation || !reverseLiquidationEmailPreview.message.trim()}
+                  className="bg-[#00b388] text-white hover:bg-[#009670] sm:min-w-[250px]"
+                >
+                  {isReversingLiquidation ? 'Restoring Account...' : 'Restore Account and Send Email'}
+                </Button>
+              </div>
+            </div>
+          </motion.div>
         </motion.div>
       )}
       {showFundModal && (

@@ -15,6 +15,25 @@ const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 const CHAT_PRESENCE_HEARTBEAT_MS = 20000;
+const CHAT_BACKGROUND_IMAGE =
+  'https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-cool-dark-green-new-theme-whatsapp.jpg';
+const CHAT_BAR_GRADIENT = 'linear-gradient(135deg, rgba(0, 116, 87, 0.98), rgba(0, 179, 136, 0.95), rgba(2, 86, 63, 0.98))';
+const GLASS_GREEN_BUBBLE = {
+  background: 'linear-gradient(135deg, rgba(29, 207, 159, 0.56), rgba(29, 207, 159, 0.32))',
+  borderColor: 'rgba(255, 255, 255, 0.26)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  boxShadow: '0 18px 40px rgba(0, 64, 48, 0.26)',
+} as const;
+const GLASS_DARK_BUBBLE = {
+  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.68))',
+  borderColor: 'rgba(255, 255, 255, 0.18)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  boxShadow: '0 18px 40px rgba(3, 7, 18, 0.34)',
+} as const;
+const CHAT_INPUT_SHADOW = '0 14px 34px rgba(0, 72, 54, 0.2)';
+const CHAT_ACTION_SHADOW = '0 12px 28px rgba(0, 72, 54, 0.22)';
 
 function isImageAttachment(fileName: string, attachmentUrl?: string | null) {
   const ext = (fileName.split('.').pop() || '').toLowerCase();
@@ -45,6 +64,7 @@ export default function Chat() {
   const [displayedText, setDisplayedText] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [accountRestriction, setAccountRestriction] = useState<AccountFreezeState | null>(null);
+  const [restrictionResolved, setRestrictionResolved] = useState(false);
   const [hasExistingMessages, setHasExistingMessages] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -126,6 +146,7 @@ export default function Chat() {
         setDarkMode(!!profile.preferences.darkMode);
       }
       setAccountRestriction(getActiveFreezeState(profile?.preferences));
+      setRestrictionResolved(true);
       const thread = await resolveThread(user.id);
       if (!thread?.id) {
         addToast('error', 'Customer support is temporarily unavailable. Please try again.');
@@ -242,13 +263,15 @@ export default function Chat() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (prefillApplied.current) return;
+    if (prefillApplied.current || !restrictionResolved) return;
     const prefill = (location.state as any)?.prefillMessage;
     if (typeof prefill === 'string' && prefill.trim()) {
-      setInput(prefill.trim());
+      if (accountRestriction?.isFrozen) {
+        setInput(prefill.trim());
+      }
       prefillApplied.current = true;
     }
-  }, [location.state]);
+  }, [accountRestriction?.isFrozen, location.state, restrictionResolved]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -308,6 +331,7 @@ export default function Chat() {
       upsertMessage(saved);
       setHasExistingMessages(true);
       await supabaseDbService.markThreadRead(thread.id, user.id);
+      void supabaseDbService.sendUserChatSupportAlert(saved.id);
       notifyChatStateChanged();
       setInput('');
     } finally {
@@ -352,6 +376,7 @@ export default function Chat() {
         upsertMessage(saved);
         setHasExistingMessages(true);
         await supabaseDbService.markThreadRead(thread.id, user.id);
+        void supabaseDbService.sendUserChatSupportAlert(saved.id);
         notifyChatStateChanged();
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -367,41 +392,42 @@ export default function Chat() {
       darkMode ? 'dark bg-[#0d1117] text-white' : 'bg-white'
     } relative overflow-hidden`}>
       <div className="pointer-events-none absolute inset-0">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')",
-            filter: darkMode ? 'brightness(0.32) saturate(0.78)' : 'brightness(0.78) saturate(0.82)',
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+            backgroundImage: `url('${CHAT_BACKGROUND_IMAGE}')`,
+            filter: darkMode ? 'brightness(0.3) saturate(0.95)' : 'brightness(0.72) saturate(0.92)',
           }}
         />
-        <div className={`absolute inset-0 ${darkMode ? 'bg-[linear-gradient(180deg,rgba(13,17,23,0.92),rgba(13,17,23,0.84),rgba(13,17,23,0.94))]' : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(247,250,249,0.82),rgba(255,255,255,0.92))]'}`} />
+        <div className={`absolute inset-0 ${darkMode ? 'bg-[linear-gradient(180deg,rgba(3,18,12,0.88),rgba(6,20,15,0.8),rgba(2,14,10,0.9))]' : 'bg-[linear-gradient(180deg,rgba(236,253,245,0.74),rgba(255,255,255,0.6),rgba(241,255,248,0.7))]'}`} />
       </div>
       {/* Chat Header */}
-      <motion.div className={`sticky top-0 z-10 px-4 py-4 flex items-center gap-4 ${
-        darkMode ? 'bg-[#0d1117]/70 border-[#21262d]' : 'bg-white/70 border-b border-border'
-      } border-b`}>
+      <motion.div
+        className="sticky top-0 z-10 flex items-center gap-4 border-b border-white/18 px-4 py-4 text-white"
+        style={{
+          background: CHAT_BAR_GRADIENT,
+          boxShadow: '0 12px 28px rgba(0, 72, 54, 0.2)',
+        }}
+      >
         <motion.button 
           onClick={() => navigate(getBackPath())}
           whileHover={{ scale: 1.1, rotate: -10 }}
           whileTap={{ scale: 0.95 }}
-          className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-md hover:shadow-lg"
-          style={{ backgroundColor: '#FFE5E5' }}
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/18 bg-white/12 text-white transition-colors shadow-md hover:bg-white/18 hover:shadow-lg"
           title="Back"
         >
-          <ArrowLeft className="w-5 h-5" style={{ color: '#FF6B6B' }} />
+          <ArrowLeft className="w-5 h-5" />
         </motion.button>
         <motion.div 
           animate={{ scale: [1, 1.1, 1] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: '#e6f9f4' }}
+          className="w-10 h-10 rounded-full flex items-center justify-center border border-white/20 bg-white/14"
         >
-          <User className="w-5 h-5" style={{ color: '#00b388' }} />
+          <User className="w-5 h-5 text-white" />
         </motion.div>
         <div>
           <div className="text-base font-semibold">Customer Care</div>
-          <div className="mt-1 text-xs text-muted-foreground">Secure support channel</div>
+          <div className="mt-1 text-xs text-white/80">Secure support channel</div>
         </div>
       </motion.div>
       {/* Messages Area */}
@@ -422,23 +448,18 @@ export default function Chat() {
         {/* Welcome Message with Typing Animation - Only show if no existing messages */}
         {!hasExistingMessages && (
           <div className="flex justify-start mb-4">
-            <Card className={`max-w-[80%] p-4 rounded-xl ${
-              darkMode ? 'bg-[#161b22]' : 'bg-[#f3f4f6]'
-            }`}>
+            <Card
+              className="max-w-[80%] rounded-xl border p-4 text-white"
+              style={GLASS_DARK_BUBBLE}
+            >
               <div className="flex items-start gap-2 mb-2">
-                <div className="w-6 h-6 rounded-full bg-[#00b388] flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full bg-white/12 flex items-center justify-center">
                   <User className="w-3 h-3 text-white" />
                 </div>
-                <span className={`text-xs font-semibold ${
-                  darkMode ? 'text-[#e8eaed]' : 'text-foreground'
-                }`}>Customer Care</span>
+                <span className="text-xs font-semibold text-white">Customer Care</span>
               </div>
-              <div className={`text-sm ${
-                darkMode ? 'text-[#e8eaed]' : 'text-foreground'
-              }`}>{displayedText}<span className={displayedText === welcomeMessage ? 'hidden' : 'inline-block w-1 h-4 ml-1 bg-[#00b388] animate-pulse'}></span></div>
-              <div className={`text-xs mt-2 ${
-                darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'
-              }`}>Just now</div>
+              <div className="text-sm text-white">{displayedText}<span className={displayedText === welcomeMessage ? 'hidden' : 'inline-block w-1 h-4 ml-1 bg-[#8ff7cf] animate-pulse'}></span></div>
+              <div className="mt-2 text-xs text-white/72">Just now</div>
             </Card>
           </div>
         )}
@@ -453,7 +474,7 @@ export default function Chat() {
 
           return msg.sender_type === 'user' ? (
             <div key={msg.id} className="flex justify-end mb-4">
-              <Card className="max-w-[80%] p-4 rounded-xl bg-[#00b388] text-white">
+              <Card className="max-w-[80%] rounded-xl border p-4 text-white" style={GLASS_GREEN_BUBBLE}>
                 {msg.attachment_url ? (
                   <div className="space-y-2">
                     {isImage && (
@@ -479,7 +500,7 @@ export default function Chat() {
                       </audio>
                     )}
                     {!isImage && !isVideo && !isAudio && (
-                      <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-white/70">{msg.message}</a>
+                      <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-white/82">{msg.message}</a>
                     )}
                   </div>
                 ) : (
@@ -493,16 +514,12 @@ export default function Chat() {
             </div>
           ) : (
             <div key={msg.id} className="flex justify-start mb-4">
-              <Card className={`max-w-[80%] p-4 rounded-xl ${
-                darkMode ? 'bg-[#161b22]' : 'bg-[#f3f4f6]'
-              }`}>
+              <Card className="max-w-[80%] rounded-xl border p-4 text-white" style={GLASS_DARK_BUBBLE}>
                 <div className="flex items-start gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-full bg-[#00b388] flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-white/12 flex items-center justify-center">
                     <User className="w-3 h-3 text-white" />
                   </div>
-                  <span className={`text-xs font-semibold ${
-                    darkMode ? 'text-[#e8eaed]' : 'text-foreground'
-                  }`}>Customer Care</span>
+                  <span className="text-xs font-semibold text-white">Customer Care</span>
                 </div>
                 {msg.attachment_url ? (
                   <div className="space-y-2">
@@ -529,19 +546,15 @@ export default function Chat() {
                       </audio>
                     )}
                     {!isImage && !isVideo && !isAudio && (
-                      <a href={msg.attachment_url} target="_blank" rel="noreferrer" className={`text-sm underline ${
-                        darkMode ? 'text-[#e8eaed]' : 'text-foreground'
-                      }`}>{msg.message}</a>
+                      <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-sm underline text-white">
+                        {msg.message}
+                      </a>
                     )}
                   </div>
                 ) : (
-                  <div className={`text-sm break-words ${
-                    darkMode ? 'text-[#e8eaed]' : 'text-foreground'
-                  }`}>{msg.message}</div>
+                  <div className="text-sm break-words text-white">{msg.message}</div>
                 )}
-                <div className={`text-xs mt-2 ${
-                  darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'
-                }`}>{timestamp}</div>
+                <div className="mt-2 text-xs text-white/72">{timestamp}</div>
               </Card>
             </div>
           );
@@ -549,9 +562,13 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
       {/* Input Area */}
-      <div className={`sticky bottom-0 px-4 py-4 shadow-lg ${
-        darkMode ? 'bg-[#0d1117]/72 border-[#21262d]' : 'bg-white/72 border-t border-border'
-      } border-t`}>
+      <div
+        className="sticky bottom-0 border-t border-white/18 px-4 py-4 shadow-lg"
+        style={{
+          background: CHAT_BAR_GRADIENT,
+          boxShadow: '0 -12px 28px rgba(0, 72, 54, 0.22)',
+        }}
+      >
         <div className="flex items-end gap-2">
           <input
             ref={fileInputRef}
@@ -566,18 +583,15 @@ export default function Chat() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={!user?.id || isUploading}
-            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${
-              darkMode
-                ? 'bg-white/5 border-white/10 text-[#8b949e] hover:text-[#e8eaed]'
-                : 'bg-white/70 border-border text-muted-foreground hover:text-foreground'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            className="w-10 h-10 rounded-xl border border-white/18 bg-white/12 flex items-center justify-center text-white/85 transition-colors hover:bg-white/18 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ boxShadow: CHAT_ACTION_SHADOW }}
             title="Upload file"
           >
             <Paperclip className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
             {input.trim().length > 0 && (
-              <div className={`text-xs mb-1 ${darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'}`}>
+              <div className="mb-1 text-xs text-white/82">
                 User is typing...
               </div>
             )}
@@ -595,12 +609,8 @@ export default function Chat() {
               rows={1}
               maxLength={1000}
               disabled={!user?.id || isSending}
-              className={`w-full min-h-[40px] max-h-[150px] rounded-xl px-3 py-2 text-sm outline-none border resize-none transition-shadow ${
-                darkMode
-                  ? 'bg-white/5 backdrop-blur-md border-white/10 text-[#e8eaed] placeholder-[#8b949e]'
-                  : 'bg-white/80 backdrop-blur-md border-border text-foreground placeholder:text-muted-foreground'
-              } [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20`}
-              style={{ resize: 'none' }}
+              className="w-full min-h-[40px] max-h-[150px] rounded-xl px-3 py-2 text-sm outline-none border resize-none transition-shadow border-white/18 bg-white/94 text-slate-900 placeholder:text-slate-400 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.45)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400/60"
+              style={{ resize: 'none', boxShadow: CHAT_INPUT_SHADOW }}
             />
           </div>
           <Button
@@ -617,9 +627,7 @@ export default function Chat() {
             <Send className="w-5 h-5" />
           </Button>
         </div>
-        <div className={`text-xs text-center mt-2 ${
-          darkMode ? 'text-[#8b949e]' : 'text-muted-foreground'
-        }`}>Typical response time: 2-5 minutes</div>
+        <div className="mt-2 text-center text-xs text-white/82">Typical response time: 2-5 minutes</div>
       </div>
       {imagePreview && (
         <div
