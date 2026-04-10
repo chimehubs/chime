@@ -805,7 +805,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                             )}
                           </div>
                         ) : (
-                          <div className="text-sm break-words text-white">{msg.message}</div>
+                          <div className="text-sm break-words whitespace-pre-wrap text-white">{msg.message}</div>
                         )}
                         <div className="mt-2 text-xs text-white/70">{timestamp}</div>
                       </Card>
@@ -903,7 +903,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                             )}
                           </div>
                         ) : (
-                          <div className="text-sm break-words">{msg.message}</div>
+                          <div className="text-sm break-words whitespace-pre-wrap">{msg.message}</div>
                         )}
                         <div className="mt-2 flex items-center justify-end gap-1 text-xs">
                           <span className="text-white/70">{timestamp}</span>

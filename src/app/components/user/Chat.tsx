@@ -511,7 +511,7 @@ export default function Chat() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-sm break-words">{msg.message}</div>
+                  <div className="text-sm break-words whitespace-pre-wrap">{msg.message}</div>
                 )}
                 <div className="mt-2 flex items-center justify-end gap-1 text-xs">
                   <span className="text-white/70">{timestamp}</span>
@@ -559,7 +559,7 @@ export default function Chat() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-sm break-words text-white">{msg.message}</div>
+                  <div className="text-sm break-words whitespace-pre-wrap text-white">{msg.message}</div>
                 )}
                 <div className="mt-2 text-xs text-white/72">{timestamp}</div>
               </Card>
