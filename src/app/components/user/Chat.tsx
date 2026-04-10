@@ -302,6 +302,14 @@ export default function Chat() {
     textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
   }, [input]);
 
+  const resetComposer = () => {
+    setInput('');
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '40px';
+    textarea.style.overflowY = 'hidden';
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || input.length > 1000 || !user?.id || isSending) return;
     setIsSending(true);
@@ -332,7 +340,7 @@ export default function Chat() {
       await supabaseDbService.markThreadRead(thread.id, user.id);
       void supabaseDbService.sendUserChatSupportAlert(saved.id);
       notifyChatStateChanged();
-      setInput('');
+      resetComposer();
     } finally {
       setIsSending(false);
     }
@@ -598,12 +606,7 @@ export default function Chat() {
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
+              enterKeyHint="enter"
               placeholder="Type your message..."
               rows={1}
               maxLength={1000}

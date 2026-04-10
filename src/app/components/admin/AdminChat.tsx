@@ -443,6 +443,14 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
   }, [input]);
 
+  const resetComposer = () => {
+    setInput('');
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '40px';
+    textarea.style.overflowY = 'hidden';
+  };
+
   const handleStartEditingMessage = useCallback((message: ChatMessage) => {
     if (message.sender_type !== 'admin' || message.attachment_url) return;
     setEditingMessageId(message.id);
@@ -520,7 +528,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     );
 
     setMessages(nextMessages);
-    setInput('');
+    resetComposer();
     applyThreadReadState(row.thread.id, readAt);
 
     await supabaseDbService.markThreadReadByAdmin(row.thread.id);
@@ -540,7 +548,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         attachment_url: null,
         read: false,
       });
-      setInput('');
+      resetComposer();
     } finally {
       setIsSending(false);
     }
@@ -763,10 +771,10 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                         style={GLASS_GREEN_BUBBLE}
                       >
                         <div className="flex items-start gap-2 mb-2">
-                          <div className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center">
-                            <User className="w-3 h-3 text-black" />
+                          <div className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center">
+                            <User className="w-3 h-3 text-white" />
                           </div>
-                          <span className="text-xs font-semibold text-black">Customer</span>
+                          <span className="text-xs font-semibold text-white">Customer</span>
                         </div>
                         {msg.attachment_url ? (
                           <div className="space-y-2">
@@ -791,15 +799,15 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                               </audio>
                             )}
                             {!isImage && !isVideo && !isAudio && (
-                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-black">
+                              <a href={msg.attachment_url} target="_blank" rel="noreferrer" className="text-xs underline text-white/90">
                                 {msg.message}
                               </a>
                             )}
                           </div>
                         ) : (
-                          <div className="text-sm break-words text-black">{msg.message}</div>
+                          <div className="text-sm break-words text-white">{msg.message}</div>
                         )}
-                        <div className="mt-2 text-xs text-black/70">{timestamp}</div>
+                        <div className="mt-2 text-xs text-white/70">{timestamp}</div>
                       </Card>
                     </div>
                   ) : (
@@ -941,12 +949,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                     ref={textareaRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
+                    enterKeyHint="enter"
                     placeholder="Type your message..."
                     rows={1}
                     maxLength={1000}
