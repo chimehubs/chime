@@ -96,6 +96,10 @@ function getReplySnippet(message?: ChatMessage | null) {
   return message.message || 'Message';
 }
 
+function isHiddenAdminMessage(message?: ChatMessage | null) {
+  return Boolean(message && message.sender_type === 'admin' && isChatMessageDeleted(message));
+}
+
 function isSameChatDay(left?: string, right?: string) {
   if (!left || !right) return false;
   const leftDate = new Date(left);
@@ -186,6 +190,11 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
   );
 
   const upsertMessage = useCallback((msg: ChatMessage) => {
+    if (isHiddenAdminMessage(msg)) {
+      setMessages((prev) => prev.filter((item) => item.id !== msg.id));
+      return;
+    }
+
     setMessages((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === msg.id);
       if (existingIndex === -1) {
@@ -264,7 +273,8 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     const rows = sortThreadRows(
       threadsData.map((thread) => {
         const threadMessages = messagesByThread.get(thread.id) || [];
-        const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : null;
+        const visibleThreadMessages = threadMessages.filter((message) => !isHiddenAdminMessage(message));
+        const lastMessage = visibleThreadMessages.length ? visibleThreadMessages[visibleThreadMessages.length - 1] : null;
         return {
           thread,
           profile: profileById.get(thread.user_id) || null,
@@ -284,7 +294,12 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         resetEditingState();
         return;
       }
-      setMessages((prev) => preserveReplyTargets(sortMessages(messagesByThread.get(nextSelectedThreadId) || []), prev));
+      setMessages((prev) =>
+        preserveReplyTargets(
+          sortMessages(messagesByThread.get(nextSelectedThreadId) || []).filter((message) => !isHiddenAdminMessage(message)),
+          prev
+        )
+      );
     }
   }, [resetEditingState, selectedThreadId]);
 
@@ -442,6 +457,14 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         (payload) => {
           const msg = payload.new as ChatMessage;
 
+          if (isHiddenAdminMessage(msg)) {
+            if (selectedThreadId === msg.thread_id) {
+              removeMessage(msg.id);
+            }
+            void loadThreads(selectedThreadId || undefined);
+            return;
+          }
+
           if (selectedThreadId === msg.thread_id) {
             upsertMessage(msg);
           }
@@ -574,16 +597,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       const deleted = await supabaseDbService.deleteChatMessage(message.id);
       if (!deleted) return;
 
-      upsertMessage(deleted);
-      setThreads((prev) =>
-        sortThreadRows(
-          prev.map((row) =>
-            row.thread.id === deleted.thread_id && row.lastMessage?.id === deleted.id
-              ? { ...row, lastMessage: deleted }
-              : row
-          )
-        )
-      );
+      removeMessage(message.id);
       if (editingMessageId === message.id) {
         resetEditingState();
       }
@@ -591,7 +605,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
     } finally {
       setBusyMessageId(null);
     }
-  }, [editingMessageId, loadThreads, resetEditingState, selectedThreadId, upsertMessage]);
+  }, [editingMessageId, loadThreads, removeMessage, resetEditingState, selectedThreadId]);
 
   const handleSelectThread = async (row: ThreadRow) => {
     setSelectedThreadId(row.thread.id);
@@ -603,7 +617,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       message.sender_type === 'user' && !message.read ? { ...message, read: true, read_at: readAt } : message
     );
 
-    setMessages((prev) => preserveReplyTargets(nextMessages, prev));
+    setMessages((prev) => preserveReplyTargets(nextMessages.filter((message) => !isHiddenAdminMessage(message)), prev));
     resetComposer();
     applyThreadReadState(row.thread.id, readAt);
 
