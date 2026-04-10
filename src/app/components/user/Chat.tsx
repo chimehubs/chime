@@ -61,7 +61,7 @@ function sortMessages(items: ChatMessage[]) {
 
 function getMessageSyncKey(items: ChatMessage[]) {
   return items
-    .map((msg) => `${msg.id}:${msg.message}:${msg.attachment_url || ''}:${msg.read ? 1 : 0}:${msg.read_at || ''}:${msg.created_at || ''}:${msg.updated_at || ''}`)
+    .map((msg) => `${msg.id}:${msg.message}:${msg.attachment_url || ''}:${msg.reply_to_message_id || ''}:${msg.read ? 1 : 0}:${msg.read_at || ''}:${msg.created_at || ''}:${msg.updated_at || ''}`)
     .join('|');
 }
 
@@ -75,6 +75,37 @@ function getReplySnippet(message?: ChatMessage | null) {
   if (isChatMessageDeleted(message)) return 'Message deleted';
   if (message.attachment_url) return message.message || 'Attachment';
   return message.message || 'Message';
+}
+
+function isSameChatDay(left?: string, right?: string) {
+  if (!left || !right) return false;
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  return (
+    leftDate.getFullYear() === rightDate.getFullYear() &&
+    leftDate.getMonth() === rightDate.getMonth() &&
+    leftDate.getDate() === rightDate.getDate()
+  );
+}
+
+function formatChatDayLabel(timestamp?: string) {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleDateString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function preserveReplyTargets(nextMessages: ChatMessage[], currentMessages: ChatMessage[]) {
+  return nextMessages.map((message) => {
+    if (message.reply_to_message_id) return message;
+    const currentMessage = currentMessages.find((item) => item.id === message.id);
+    return currentMessage?.reply_to_message_id
+      ? { ...message, reply_to_message_id: currentMessage.reply_to_message_id }
+      : message;
+  });
 }
 
 export default function Chat() {
@@ -94,6 +125,7 @@ export default function Chat() {
   const [imagePreview, setImagePreview] = useState<{ url: string; name?: string } | null>(null);
   const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasRunAnimation = useRef(false);
@@ -118,7 +150,11 @@ export default function Chat() {
       }
 
       const next = [...prev];
-      next[existingIndex] = { ...next[existingIndex], ...msg };
+      next[existingIndex] = {
+        ...next[existingIndex],
+        ...msg,
+        reply_to_message_id: msg.reply_to_message_id ?? next[existingIndex].reply_to_message_id ?? null,
+      };
       return sortMessages(next);
     });
   }, []);
@@ -126,8 +162,9 @@ export default function Chat() {
   const refreshMessages = useCallback(async (activeThreadId: string) => {
     const latest = sortMessages(await supabaseDbService.getChatMessages(activeThreadId));
     const visibleMessages = latest.filter((message) => !isChatMessageDeleted(message));
-    setMessages((prev) => (getMessageSyncKey(visibleMessages) !== getMessageSyncKey(prev) ? visibleMessages : prev));
-    setHasExistingMessages(visibleMessages.length > 0);
+    const mergedMessages = preserveReplyTargets(visibleMessages, messagesRef.current);
+    setMessages((prev) => (getMessageSyncKey(mergedMessages) !== getMessageSyncKey(prev) ? mergedMessages : prev));
+    setHasExistingMessages(mergedMessages.length > 0);
     notifyChatStateChanged();
   }, [notifyChatStateChanged]);
 
@@ -184,8 +221,9 @@ export default function Chat() {
       setThreadId(thread.id);
       const existing = await supabaseDbService.getChatMessages(thread.id);
       const visibleMessages = sortMessages(existing).filter((message) => !isChatMessageDeleted(message));
-      setMessages(visibleMessages);
-      setHasExistingMessages(visibleMessages.length > 0);
+      const mergedMessages = preserveReplyTargets(visibleMessages, messagesRef.current);
+      setMessages(mergedMessages);
+      setHasExistingMessages(mergedMessages.length > 0);
       await supabaseDbService.markThreadRead(thread.id, user.id);
       notifyChatStateChanged();
     };
@@ -300,14 +338,19 @@ export default function Chat() {
   }, [accountRestriction?.isFrozen, location.state, restrictionResolved]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     if (!threadId) return;
     let isMounted = true;
     const poll = async () => {
       const latest = sortMessages(await supabaseDbService.getChatMessages(threadId));
       if (!isMounted) return;
       const visibleMessages = latest.filter((message) => !isChatMessageDeleted(message));
-      setMessages((prev) => (getMessageSyncKey(visibleMessages) !== getMessageSyncKey(prev) ? visibleMessages : prev));
-      setHasExistingMessages(visibleMessages.length > 0);
+      const mergedMessages = preserveReplyTargets(visibleMessages, messagesRef.current);
+      setMessages((prev) => (getMessageSyncKey(mergedMessages) !== getMessageSyncKey(prev) ? mergedMessages : prev));
+      setHasExistingMessages(mergedMessages.length > 0);
       notifyChatStateChanged();
     };
     const interval = setInterval(poll, 5000);
@@ -512,7 +555,7 @@ export default function Chat() {
           </div>
         )}
         {/* Messages */}
-        {messages.map((msg) => {
+        {messages.map((msg, index) => {
           const fileName = msg.message || '';
           const ext = (fileName.split('.').pop() || '').toLowerCase();
           const isImage = isImageAttachment(fileName, msg.attachment_url);
@@ -527,9 +570,19 @@ export default function Chat() {
               ? 'You'
               : 'Customer Care'
             : 'Original';
+          const showDayDivider = index === 0 || !isSameChatDay(messages[index - 1]?.created_at, msg.created_at);
 
-          return msg.sender_type === 'user' ? (
-            <div key={msg.id} className="mb-4 flex justify-end">
+          return (
+            <React.Fragment key={msg.id}>
+              {showDayDivider && (
+                <div className="sticky top-2 z-[1] my-3 flex justify-center">
+                  <div className="rounded-full border border-white/14 bg-slate-950/46 px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-white/82 backdrop-blur-md">
+                    {formatChatDayLabel(msg.created_at)}
+                  </div>
+                </div>
+              )}
+              {msg.sender_type === 'user' ? (
+            <div className="mb-4 flex justify-end">
               <div className="relative flex max-w-[88%] items-center gap-2">
                 <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
                   <Reply className="h-4 w-4" />
@@ -606,7 +659,7 @@ export default function Chat() {
               </div>
             </div>
           ) : (
-            <div key={msg.id} className="mb-4 flex justify-start">
+            <div className="mb-4 flex justify-start">
               <div className="relative flex max-w-[88%] items-center gap-2">
                 <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
                   <Reply className="h-4 w-4" />
@@ -689,6 +742,8 @@ export default function Chat() {
                 </motion.div>
               </div>
             </div>
+          )}
+            </React.Fragment>
           );
         })}
         <div ref={messagesEndRef} />

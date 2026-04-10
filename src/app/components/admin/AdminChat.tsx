@@ -96,6 +96,37 @@ function getReplySnippet(message?: ChatMessage | null) {
   return message.message || 'Message';
 }
 
+function isSameChatDay(left?: string, right?: string) {
+  if (!left || !right) return false;
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  return (
+    leftDate.getFullYear() === rightDate.getFullYear() &&
+    leftDate.getMonth() === rightDate.getMonth() &&
+    leftDate.getDate() === rightDate.getDate()
+  );
+}
+
+function formatChatDayLabel(timestamp?: string) {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleDateString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function preserveReplyTargets(nextMessages: ChatMessage[], currentMessages: ChatMessage[]) {
+  return nextMessages.map((message) => {
+    if (message.reply_to_message_id) return message;
+    const currentMessage = currentMessages.find((item) => item.id === message.id);
+    return currentMessage?.reply_to_message_id
+      ? { ...message, reply_to_message_id: currentMessage.reply_to_message_id }
+      : message;
+  });
+}
+
 function isUserOnline(profile?: Profile | null, now = Date.now()) {
   if (!profile?.chat_last_seen_at) return false;
   return now - new Date(profile.chat_last_seen_at).getTime() <= USER_ONLINE_WINDOW_MS;
@@ -162,7 +193,11 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       }
 
       const next = [...prev];
-      next[existingIndex] = { ...next[existingIndex], ...msg };
+      next[existingIndex] = {
+        ...next[existingIndex],
+        ...msg,
+        reply_to_message_id: msg.reply_to_message_id ?? next[existingIndex].reply_to_message_id ?? null,
+      };
       return sortMessages(next);
     });
   }, []);
@@ -249,7 +284,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         resetEditingState();
         return;
       }
-      setMessages(sortMessages(messagesByThread.get(nextSelectedThreadId) || []));
+      setMessages((prev) => preserveReplyTargets(sortMessages(messagesByThread.get(nextSelectedThreadId) || []), prev));
     }
   }, [resetEditingState, selectedThreadId]);
 
@@ -568,7 +603,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       message.sender_type === 'user' && !message.read ? { ...message, read: true, read_at: readAt } : message
     );
 
-    setMessages(nextMessages);
+    setMessages((prev) => preserveReplyTargets(nextMessages, prev));
     resetComposer();
     applyThreadReadState(row.thread.id, readAt);
 
@@ -828,7 +863,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                   <p className="text-sm">Start a conversation with {selectedProfileName}</p>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, index) => {
                   const fileName = msg.message || '';
                   const ext = (fileName.split('.').pop() || '').toLowerCase();
                   const isImage = isImageAttachment(fileName, msg.attachment_url);
@@ -845,11 +880,21 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                       ? 'Customer'
                       : 'You'
                     : 'Original';
+                  const showDayDivider = index === 0 || !isSameChatDay(messages[index - 1]?.created_at, msg.created_at);
                   const isEditingThisMessage = editingMessageId === msg.id;
                   const isBusyMessage = busyMessageId === msg.id;
 
-                  return msg.sender_type === 'user' ? (
-                    <div key={msg.id} className="flex justify-start">
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDayDivider && (
+                        <div className="sticky top-2 z-[1] my-3 flex justify-center">
+                          <div className="rounded-full border border-white/14 bg-slate-950/46 px-4 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-white/82 backdrop-blur-md">
+                            {formatChatDayLabel(msg.created_at)}
+                          </div>
+                        </div>
+                      )}
+                      {msg.sender_type === 'user' ? (
+                    <div className="flex justify-start">
                       <div className="relative flex max-w-[88%] items-center gap-2">
                         <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
                           <Reply className="h-4 w-4" />
@@ -931,7 +976,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                       </div>
                     </div>
                   ) : (
-                    <div key={msg.id} className="flex justify-end">
+                    <div className="flex justify-end">
                       <div className="relative flex max-w-[88%] items-center gap-2">
                         <div className="pointer-events-none flex h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-white/10 text-white/72 shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
                           <Reply className="h-4 w-4" />
@@ -1068,6 +1113,8 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
                         </motion.div>
                       </div>
                     </div>
+                  )}
+                    </React.Fragment>
                   );
                 })
               )}

@@ -3,6 +3,7 @@ import { getClient } from './supabaseClient';
 export type UserStatus = 'UNREGISTERED' | 'ACTIVE' | 'SUSPENDED';
 export type UserRole = 'user' | 'admin';
 export const ADMIN_CHAT_DELETED_SENTINEL = '__ADMIN_CHAT_DELETED__';
+const DEFAULT_CHAT_MESSAGES_LIMIT = 1000;
 
 export interface Profile {
   id: string;
@@ -523,7 +524,7 @@ class SupabaseDbService {
     return (data || null) as ChatThread | null;
   }
 
-  async getChatMessages(threadId: string, limit = 200): Promise<ChatMessage[]> {
+  async getChatMessages(threadId: string, limit = DEFAULT_CHAT_MESSAGES_LIMIT): Promise<ChatMessage[]> {
     const client = getClient();
     if (!client) return [];
     const { data, error } = await client
@@ -574,7 +575,10 @@ class SupabaseDbService {
         this.logError('sendChatMessage.retryWithoutReplyToMessageId', retryError);
         return null;
       }
-      return retryData as ChatMessage;
+      return {
+        ...(retryData as ChatMessage),
+        reply_to_message_id: payload.reply_to_message_id ?? null,
+      };
     }
     if (error) {
       this.logError('sendChatMessage', error);
