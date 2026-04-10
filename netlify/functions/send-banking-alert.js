@@ -7,6 +7,7 @@ const BRAND_RED = '#ef4444';
 const CARD_BG = 'rgba(15, 23, 42, 0.74)';
 const PAGE_BG = '#050816';
 const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_SITE_URL = 'https://chimehub.netlify.app';
 const SUPPORT_INBOX_EMAIL = process.env.SUPPORT_INBOX_EMAIL || 'chimhubs@gmail.com';
 
 function json(statusCode, body, origin = '*') {
@@ -185,7 +186,7 @@ function renderTextVersion({ eyebrow, title, subtitle, rows, ctaUrl }) {
 }
 
 function getSiteUrl() {
-  const raw = process.env.SITE_URL || process.env.VITE_SITE_URL || '';
+  const raw = process.env.SITE_URL || process.env.VITE_SITE_URL || DEFAULT_SITE_URL;
   return raw.replace(/\/$/, '');
 }
 

@@ -7,13 +7,15 @@ type RequiredEnv = {
   VITE_SITE_URL?: string;
 };
 
+const DEFAULT_SITE_URL = 'https://chimehub.netlify.app';
+
 function getEnv(): RequiredEnv {
   // Vite exposes env via import.meta.env
   const env = (import.meta as any).env;
+  const resolvedSiteUrl =
+    env.VITE_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : DEFAULT_SITE_URL);
 
-  const fallbackApiUrl = env.VITE_SITE_URL
-    ? `${env.VITE_SITE_URL}/api`
-    : (typeof window !== 'undefined' ? `${window.location.origin}/api` : '');
+  const fallbackApiUrl = `${resolvedSiteUrl}/api`;
 
   const vars: RequiredEnv = {
     VITE_API_URL: env.VITE_API_URL || fallbackApiUrl,
@@ -21,7 +23,7 @@ function getEnv(): RequiredEnv {
     VITE_FEATURE_FLAGS: env.VITE_FEATURE_FLAGS,
     VITE_LOG_LEVEL: env.VITE_LOG_LEVEL || 'warn',
     VITE_IS_PRODUCTION: env.VITE_IS_PRODUCTION || env.MODE === 'production',
-    VITE_SITE_URL: env.VITE_SITE_URL,
+    VITE_SITE_URL: env.VITE_SITE_URL || DEFAULT_SITE_URL,
   };
 
   if (!vars.VITE_API_URL) {

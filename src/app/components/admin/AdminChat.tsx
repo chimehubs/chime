@@ -24,8 +24,7 @@ const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv'];
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 const USER_ONLINE_WINDOW_MS = 45000;
-const CHAT_BACKGROUND_IMAGE =
-  'https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-cool-dark-green-new-theme-whatsapp.jpg';
+const CHAT_BACKGROUND_IMAGE = '/images/chat-background.jpg';
 const CHAT_BAR_GRADIENT = 'linear-gradient(135deg, rgba(0, 116, 87, 0.98), rgba(0, 179, 136, 0.95), rgba(2, 86, 63, 0.98))';
 const GLASS_GREEN_BUBBLE = {
   background: 'linear-gradient(135deg, rgba(29, 207, 159, 0.54), rgba(29, 207, 159, 0.3))',

@@ -9,7 +9,7 @@
 --   2. Run this file in the SQL editor
 --   3. Run:
 --      select public.install_banking_notification_webhooks(
---        'https://your-netlify-site.netlify.app/api/send-banking-alert',
+--        'https://chimehub.netlify.app/api/send-banking-alert',
 --        'your-shared-webhook-secret'
 --      );
 --
