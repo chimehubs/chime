@@ -540,14 +540,23 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       if (!deleted) return;
 
       upsertMessage(deleted);
+      setThreads((prev) =>
+        sortThreadRows(
+          prev.map((row) =>
+            row.thread.id === deleted.thread_id && row.lastMessage?.id === deleted.id
+              ? { ...row, lastMessage: deleted }
+              : row
+          )
+        )
+      );
       if (editingMessageId === message.id) {
         resetEditingState();
       }
-      await loadThreads(selectedThreadId || undefined);
+      void loadThreads(selectedThreadId || undefined);
     } finally {
       setBusyMessageId(null);
     }
-  }, [editingMessageId, loadThreads, removeMessage, resetEditingState, selectedThreadId]);
+  }, [editingMessageId, loadThreads, resetEditingState, selectedThreadId, upsertMessage]);
 
   const handleSelectThread = async (row: ThreadRow) => {
     setSelectedThreadId(row.thread.id);
@@ -572,7 +581,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
 
     setIsSending(true);
     try {
-      await supabaseDbService.sendChatMessage({
+      const saved = await supabaseDbService.sendChatMessage({
         thread_id: selectedThread.thread.id,
         user_id: selectedThread.thread.user_id,
         sender_type: 'admin',
@@ -581,6 +590,21 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
         reply_to_message_id: replyToMessageId,
         read: false,
       });
+      if (!saved) return;
+
+      upsertMessage(saved);
+      setThreads((prev) =>
+        sortThreadRows(
+          prev.map((row) =>
+            row.thread.id === saved.thread_id
+              ? {
+                  ...row,
+                  lastMessage: saved,
+                }
+              : row
+          )
+        )
+      );
       resetComposer();
     } finally {
       setIsSending(false);
@@ -599,7 +623,7 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
       try {
         const url = await uploadFileToStorage('chat-attachments', path, file);
         if (url) {
-          await supabaseDbService.sendChatMessage({
+          const saved = await supabaseDbService.sendChatMessage({
             thread_id: selectedThread.thread.id,
             user_id: selectedThread.thread.user_id,
             sender_type: 'admin',
@@ -608,7 +632,22 @@ export default function AdminChat({ isOpen, onClose, onUnreadCountChange }: Admi
             reply_to_message_id: replyToMessageId,
             read: false,
           });
-          resetComposer();
+          if (saved) {
+            upsertMessage(saved);
+            setThreads((prev) =>
+              sortThreadRows(
+                prev.map((row) =>
+                  row.thread.id === saved.thread_id
+                    ? {
+                        ...row,
+                        lastMessage: saved,
+                      }
+                    : row
+                )
+              )
+            );
+            resetComposer();
+          }
         }
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';

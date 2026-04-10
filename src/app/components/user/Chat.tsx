@@ -106,6 +106,11 @@ export default function Chat() {
   }, []);
 
   const upsertMessage = useCallback((msg: ChatMessage) => {
+    if (isChatMessageDeleted(msg)) {
+      setMessages((prev) => prev.filter((item) => item.id !== msg.id));
+      return;
+    }
+
     setMessages((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === msg.id);
       if (existingIndex === -1) {
@@ -120,8 +125,9 @@ export default function Chat() {
 
   const refreshMessages = useCallback(async (activeThreadId: string) => {
     const latest = sortMessages(await supabaseDbService.getChatMessages(activeThreadId));
-    setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
-    setHasExistingMessages(latest.length > 0);
+    const visibleMessages = latest.filter((message) => !isChatMessageDeleted(message));
+    setMessages((prev) => (getMessageSyncKey(visibleMessages) !== getMessageSyncKey(prev) ? visibleMessages : prev));
+    setHasExistingMessages(visibleMessages.length > 0);
     notifyChatStateChanged();
   }, [notifyChatStateChanged]);
 
@@ -177,8 +183,9 @@ export default function Chat() {
       }
       setThreadId(thread.id);
       const existing = await supabaseDbService.getChatMessages(thread.id);
-      setMessages(sortMessages(existing));
-      setHasExistingMessages(existing.length > 0);
+      const visibleMessages = sortMessages(existing).filter((message) => !isChatMessageDeleted(message));
+      setMessages(visibleMessages);
+      setHasExistingMessages(visibleMessages.length > 0);
       await supabaseDbService.markThreadRead(thread.id, user.id);
       notifyChatStateChanged();
     };
@@ -298,8 +305,9 @@ export default function Chat() {
     const poll = async () => {
       const latest = sortMessages(await supabaseDbService.getChatMessages(threadId));
       if (!isMounted) return;
-      setMessages((prev) => (getMessageSyncKey(latest) !== getMessageSyncKey(prev) ? latest : prev));
-      setHasExistingMessages(latest.length > 0);
+      const visibleMessages = latest.filter((message) => !isChatMessageDeleted(message));
+      setMessages((prev) => (getMessageSyncKey(visibleMessages) !== getMessageSyncKey(prev) ? visibleMessages : prev));
+      setHasExistingMessages(visibleMessages.length > 0);
       notifyChatStateChanged();
     };
     const interval = setInterval(poll, 5000);

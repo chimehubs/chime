@@ -559,6 +559,23 @@ class SupabaseDbService {
       .insert(payload)
       .select()
       .single();
+    if (
+      error &&
+      Object.prototype.hasOwnProperty.call(payload, 'reply_to_message_id') &&
+      this.isMissingColumnError(error, 'chat_messages', 'reply_to_message_id')
+    ) {
+      const { reply_to_message_id: _replyToMessageId, ...fallbackPayload } = payload;
+      const { data: retryData, error: retryError } = await client
+        .from('chat_messages')
+        .insert(fallbackPayload)
+        .select()
+        .single();
+      if (retryError) {
+        this.logError('sendChatMessage.retryWithoutReplyToMessageId', retryError);
+        return null;
+      }
+      return retryData as ChatMessage;
+    }
     if (error) {
       this.logError('sendChatMessage', error);
       return null;
